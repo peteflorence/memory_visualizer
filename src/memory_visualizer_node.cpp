@@ -36,9 +36,18 @@ public:
 	
 private:
 
+	int counter = 0;
+	int fov_id = 0;
+
 	void OnPose( geometry_msgs::PoseStamped const& pose ) {
-		ROS_INFO("GOT POSE");
-		PublishFovMarker();
+		counter++;
+		if (counter >= 25) {
+			counter = 0;
+			ROS_INFO("GOT POSE");
+			fov_id += 1;
+			if (fov_id >= 20) {fov_id = 0;}
+			PublishFovMarker();
+		}
 	}
 
 	void PublishFovMarker() {
@@ -46,7 +55,7 @@ private:
      	marker.header.frame_id = drawing_frame;
     	marker.header.stamp = ros::Time::now();
   	   	marker.ns = "fov_side";
-	    marker.id = 0;
+	    marker.id = fov_id;
   		marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
   		marker.action = visualization_msgs::Marker::ADD;
     	marker.pose.position.x = 0.0;
@@ -66,10 +75,10 @@ private:
      	marker.color.a = 1.0;
 
      	std::vector<Vector3> fov_corners;
-     	fov_corners.push_back(Vector3(5,4,10)); // bottom right
-     	fov_corners.push_back(Vector3(5,-4,10)); // top right
-     	fov_corners.push_back(Vector3(-5,-4,10)); // top left
-     	fov_corners.push_back(Vector3(-5,4,10)); // bottom left  
+     	fov_corners.push_back(Vector3(7,5.25,10)); // bottom right
+     	fov_corners.push_back(Vector3(7,-5.25,10)); // top right
+     	fov_corners.push_back(Vector3(-7,-5.25,10)); // top left
+     	fov_corners.push_back(Vector3(-7,5.25,10)); // bottom left  
 
      	int j = 0;
      	for (int i = 0; i < 4; i++) {
