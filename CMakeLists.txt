@@ -49,5 +49,5 @@ find_library(OROCOS_KDL orocos-kdl)
 set(orocos_kdl_LIBRARIES ${OROCOS_KDL})
 
 add_executable( memory_visualizer_node src/memory_visualizer_node.cpp )
-target_link_libraries( memory_visualizer_node  ${catkin_LIBRARIES})
+target_link_libraries( memory_visualizer_node  ${catkin_LIBRARIES} orocos-kdl)
 

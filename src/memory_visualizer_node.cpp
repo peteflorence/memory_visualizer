@@ -1,5 +1,5 @@
 #include <Eigen/Dense>
-typedef float Scalar;
+typedef double Scalar;
 typedef Eigen::Matrix<Scalar, 3, 1> Vector3;
 
 #include <ros/ros.h>
@@ -10,6 +10,7 @@ typedef Eigen::Matrix<Scalar, 3, 1> Vector3;
 #include "geometry_msgs/Point.h"
 
 #include "tf/tf.h"
+#include <tf/transform_listener.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -23,13 +24,10 @@ class MemoryVisualizerNode {
 public:
 
 	MemoryVisualizerNode() {
-
 		// Subscribers
 		pose_sub = nh.subscribe("/pose", 1, &MemoryVisualizerNode::OnPose, this);
-
   	    // Publishers
 		fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
-
 		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(tf_buffer_);
 	}
 
@@ -107,10 +105,13 @@ private:
 	}
 
 	void BuildSideOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker) {
+		Vector3 corner_0 = TransformRDFtoWorld(Vector3(0,0,0));
+		corner_1 = TransformRDFtoWorld(corner_1);
+		corner_2 = TransformRDFtoWorld(corner_2);
 		geometry_msgs::Point p;
-		p.x = 0.0;
-		p.y = 0.0;
-  		p.z = 0.0;
+		p.x = corner_0(0);
+		p.y = corner_0(1);
+  		p.z = corner_0(2);
 
    		geometry_msgs::Point p2 = p;
    		p2.x = corner_1(0);
@@ -137,6 +138,8 @@ private:
 	}
 
 	void BuildLineOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker) {
+		corner_1 = TransformRDFtoWorld(corner_1);
+		corner_2 = TransformRDFtoWorld(corner_2);
 		geometry_msgs::Point p;
 		p.x = corner_1(0);
    		p.y = corner_1(1);
@@ -159,63 +162,38 @@ private:
    		marker.colors.push_back(c);      	    	
 	}
 
-	void PublishTestMarker() {
-		visualization_msgs::Marker marker;
-     	marker.header.frame_id = drawing_frame;
-    	marker.header.stamp = ros::Time::now();
-  	   	marker.ns = "fov_namespace";
-	    marker.id = 0;
-  		marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
-  		marker.action = visualization_msgs::Marker::ADD;
-    	marker.pose.position.x = 0.0;
-    	marker.pose.position.y = 0.0;
-  		marker.pose.position.z = 0.0;
-   		marker.pose.orientation.x = 0.0;
-  		marker.pose.orientation.y = 0.0;
-   		marker.pose.orientation.z = 0.0;
-    	marker.pose.orientation.w = 1.0;
-    	marker.pose.position.x = 0.0;
-     	marker.scale.x = 1.0;
-     	marker.scale.y = 1.0;
-     	marker.scale.z = 1.0;
-     	marker.color.r = 1.0;
-     	marker.color.g = 1.0;
-     	marker.color.b = 1.0;
-     	marker.color.a = 1.0;
-    	for (int x = 0; x < 10; ++x) {
-       		for (int y = 0; y < 10; ++y) {
-        		for (int z = 0; z < 10; ++z) {
-     				geometry_msgs::Point p;
-       				p.x = x * 0.1f;
-     				p.y = y * 0.1f;
-	          		p.z = z * 0.1f;
-	 
-	           		geometry_msgs::Point p2 = p;
-	           		p2.x = p.x + 0.05;
-	 
-	           		geometry_msgs::Point p3 = p;
-	           		p3.x = p2.x;
-	           		p3.z = p.z + 0.05;
-	           		marker.points.push_back(p);
-	           		marker.points.push_back(p2);
-	           		marker.points.push_back(p3);
-	 
-	           		std_msgs::ColorRGBA c;
-	           		c.r = x * 0.1;
-	           		c.g = y * 0.1;
-	           		c.b = z * 0.1;
-	           		c.a = 1.0;
-	           		marker.colors.push_back(c);
-	           		marker.colors.push_back(c);
-	          		marker.colors.push_back(c);
-	        	}
-	      	}
+	Vector3 TransformRDFtoWorld(Vector3 const& ortho_body_frame) {
+		geometry_msgs::TransformStamped tf;
+	    try {
+	      tf = tf_buffer_.lookupTransform("world", "r200_depth_optical_frame",
+	                                    ros::Time(0), ros::Duration(1/30.0));
+	    } catch (tf2::TransformException &ex) {
+	      ROS_ERROR("ID 7 %s", ex.what());
+	      return Vector3(0,0,0);
 	    }
-	    fov_pub.publish( marker );
+
+	    geometry_msgs::PoseStamped pose_ortho_body_vector = PoseFromVector3(ortho_body_frame, "r200_depth_optical_frame");
+    	geometry_msgs::PoseStamped pose_vector_world_frame = PoseFromVector3(Vector3(0,0,0), "world");
+    	tf2::doTransform(pose_ortho_body_vector, pose_vector_world_frame, tf);
+    	return VectorFromPose(pose_vector_world_frame);
+	}
+
+	geometry_msgs::PoseStamped PoseFromVector3(Vector3 const& position, std::string const& frame) {
+		geometry_msgs::PoseStamped pose;
+		pose.pose.position.x = position(0);
+		pose.pose.position.y = position(1);
+		pose.pose.position.z = position(2);
+		pose.header.frame_id = frame;
+		pose.header.stamp = ros::Time::now();
+		return pose;
+	}
+
+	Vector3 VectorFromPose(geometry_msgs::PoseStamped const& pose) {
+		return Vector3(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
 	}
 
 
-	std::string drawing_frame = "r200_depth_optical_frame";
+	std::string drawing_frame = "world";
 
 	ros::Subscriber pose_sub;
 
