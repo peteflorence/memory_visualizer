@@ -45,7 +45,7 @@ private:
 		visualization_msgs::Marker marker;
      	marker.header.frame_id = drawing_frame;
     	marker.header.stamp = ros::Time::now();
-  	   	marker.ns = "fov_namespace";
+  	   	marker.ns = "fov_side";
 	    marker.id = 0;
   		marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
   		marker.action = visualization_msgs::Marker::ADD;
@@ -77,12 +77,27 @@ private:
      		if (j == 4) {j = 0;}; // connect back around
      		BuildSideOfFOV(fov_corners.at(i), fov_corners.at(j), marker);
      	}
+     	fov_pub.publish( marker );
 
-	    fov_pub.publish( marker );
+     	marker.type = visualization_msgs::Marker::LINE_LIST;
+     	marker.ns = "fov_line";
+     	marker.scale.x = 0.1;
+     	marker.scale.y = 0.1;
+     	marker.scale.z = 0.1;
+     	marker.points.clear();
+     	marker.colors.clear();
+     	for (int i = 0; i < 4; i++) {
+     		j = i+1;
+     		if (j == 4) {j = 0;}; // connect back around
+     		BuildLineOfFOV(Vector3(0,0,0), fov_corners.at(i), marker);
+     		BuildLineOfFOV(fov_corners.at(i), fov_corners.at(j), marker);
+     	}
+     	fov_pub.publish( marker );
+
+	    
 	}
 
 	void BuildSideOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker) {
-
 		geometry_msgs::Point p;
 		p.x = 0.0;
 		p.y = 0.0;
@@ -109,8 +124,30 @@ private:
    		c.a = 0.15;
    		marker.colors.push_back(c);
    		marker.colors.push_back(c);
-  		marker.colors.push_back(c);
-	        	    	
+  		marker.colors.push_back(c);       	    	
+	}
+
+	void BuildLineOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker) {
+		geometry_msgs::Point p;
+		p.x = corner_1(0);
+   		p.y = corner_1(1);
+   		p.z = corner_1(2);
+
+   		geometry_msgs::Point p2 = p;
+   		p2.x = corner_2(0);
+   		p2.y = corner_2(1);
+   		p2.z = corner_2(2);
+
+   		marker.points.push_back(p);
+   		marker.points.push_back(p2);
+
+   		std_msgs::ColorRGBA c;
+   		c.r = 1.0;
+   		c.g = 1.0;
+   		c.b = 0.0;
+   		c.a = 0.50;
+   		marker.colors.push_back(c);
+   		marker.colors.push_back(c);      	    	
 	}
 
 	void PublishTestMarker() {
