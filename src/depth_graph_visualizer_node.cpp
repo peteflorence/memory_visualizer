@@ -40,6 +40,7 @@ private:
 	int counter = 0; // this just reduces to 33 Hz from 100 Hz
   Matrix3 last_R;
   Vector3 last_t;
+  std::vector<Eigen::Matrix4d> odometries;
 
   // delete this later
   Eigen::Matrix4d current_transform;
@@ -60,13 +61,27 @@ private:
     // T_1^W inverse
     Eigen::Matrix4d transform_1 = Eigen::Matrix4d::Identity();
     transform_1.block<3,3>(0,0) = R_1.transpose();
-    transform_1.block<3,1>(0,3) = -1 * R_1.transpose() * t_1;
+    transform_1.block<3,1>(0,3) = -1.0 * R_1.transpose() * t_1;
 
     Eigen::Matrix4d transform_2 = Eigen::Matrix4d::Identity();
     transform_2.block<3,3>(0,0) = R_2;
     transform_2.block<3,1>(0,3) = t_2;
 
     return transform_1*transform_2;
+  }
+
+  void AddToOdometries(Eigen::Matrix4d current_transform) {
+    if (odometries.size() < 20) {
+      std::cout << "building up " << odometries.size();
+      odometries.push_back(current_transform);
+      return;
+    } 
+
+    std::cout << "rotate and add" << std::endl;
+    // Shift vector so each move back 1
+    rotate(odometries.begin(),odometries.end()-1,odometries.end());
+    odometries.at(0) = current_transform;
+
   }
 
 
@@ -81,13 +96,14 @@ private:
     
 
 		counter++;
-		if (counter >= 3) {
+		if (counter >= 25) {
 			counter = 0;
 			ROS_INFO("GOT POSE");
       Matrix3 R = constructR(pose);
       Vector3 t = constructt(pose);
       
       current_transform = findTransform(R, t, last_R, last_t);
+      AddToOdometries(current_transform);
       last_R = R;
       last_t = t;
 			
@@ -98,7 +114,7 @@ private:
 	}
 
   void PublishFovMarkers() {
-    for (int fov_id = 0; fov_id < 9; fov_id++) {
+    for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
       PublishFovMarker(fov_id);
     }
   }
@@ -110,7 +126,7 @@ private:
     position_current_rdf_frame << position_other_rdf_frame(0), position_other_rdf_frame(1), position_other_rdf_frame(2), 1.0;
 
     for (int i = 0; i < fov_id; i++) {
-      position_current_rdf_frame = current_transform * position_current_rdf_frame;
+      position_current_rdf_frame = odometries.at(i) * position_current_rdf_frame;
     }
 
     Vector3 answer;
