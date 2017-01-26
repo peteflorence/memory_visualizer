@@ -1,6 +1,7 @@
 #include <Eigen/Dense>
 typedef double Scalar;
 typedef Eigen::Matrix<Scalar, 3, 1> Vector3;
+typedef Eigen::Matrix<Scalar, 3, 3> Matrix3;
 
 #include <ros/ros.h>
 #include <nav_msgs/Path.h>
@@ -34,9 +35,64 @@ public:
 	
 private:
 
+  bool initiated = false;
 	int counter = 0; // this just reduces to 33 Hz from 100 Hz
+  Matrix3 last_R;
+  Vector3 last_t;
+
+  // delete this later
+  Eigen::Matrix4d current_transform;
+
+
+  Matrix3 constructR( geometry_msgs::PoseStamped const& pose ) {
+    Eigen::Quaternion<Scalar> quat(pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
+    return quat.toRotationMatrix();
+  }
+
+  Vector3 constructt( geometry_msgs::PoseStamped const& pose ) {
+    Vector3 t;
+    t << pose.pose.position.x, pose.pose.position.y, pose.pose.position.z;
+    return t;
+  }
+
+  Eigen::Matrix4d findTransform(Matrix3 R_1, Vector3 t_1, Matrix3 R_2, Vector3 t_2) {
+    // T_1^W inverse
+    Eigen::Matrix4d transform_1 = Eigen::Matrix4d::Identity();
+    transform_1.block<3,3>(0,0) = R_1.transpose();
+    transform_1.block<3,1>(0,3) = -1 * R_1.transpose() * t_1;
+
+    Eigen::Matrix4d transform_2 = Eigen::Matrix4d::Identity();
+    transform_1.block<3,3>(0,0) = R_2;
+    transform_1.block<3,1>(0,3) = t_2;
+
+    return transform_1*transform_2;
+  }
+
 
 	void OnPose( geometry_msgs::PoseStamped const& pose ) {
+    if (!initiated) {
+      last_R = constructR(pose);
+      last_t = constructt(pose);
+      current_transform = Eigen::Matrix4d::Identity();
+      initiated = true;
+      return;
+    }
+    
+    Matrix3 R = constructR(pose);
+    Vector3 t = constructt(pose);
+    
+    Eigen::Matrix4d transform_1 = Eigen::Matrix4d::Identity();
+    transform_1.block<3,3>(0,0) = R;
+    // Define translation
+    transform_1 (0,3) = t(0);
+    transform_1 (1,3) = t(1);
+    transform_1 (2,3) = t(2);
+    //std::cout << "transform 1 " << std::endl;
+    //std::cout << transform_1 << std::endl;
+    current_transform = findTransform(R, t, last_R, last_t);
+    last_R = R;
+    last_t = t;
+
 		counter++;
 		if (counter >= 3) {
 			counter = 0;
@@ -44,21 +100,43 @@ private:
 			
 			PublishFovMarkers();
       //PrintToyTransform();
+      //PrintVectorPractice();
 		}
 	}
+
+  void PrintVectorPractice() {
+    std::vector<int> v;
+    int num = 6;
+    for (int i = 0; i < num; i++) {
+      v.push_back(i);
+    } 
+
+    std::cout << "Before rotating " << std::endl;
+    for (int i = 0; i < num; i++) {
+      std::cout << v.at(i) << std::endl;;
+    } 
+
+    std::cout << "After rotating " << std::endl;
+    rotate(v.begin(),v.end()-1,v.end());
+    for (int i = 0; i < num; i++) {
+      std::cout << v.at(i) << std::endl;;
+    } 
+
+    std::cout << "New at top " << std::endl;
+    v.at(0) = -1;
+    for (int i = 0; i < num; i++) {
+      std::cout << v.at(i) << std::endl;;
+    } 
+
+  }
 
   void PrintToyTransform() {
     Vector3 p1, p2;
     p1 << 1,1,1;
     std::cout << "p1 " << p1 << std::endl;
     Eigen::Affine3d transform_2 = Eigen::Affine3d::Identity();
-
-    // Define a translation of 2.5 meters on the x axis.
-    transform_2.translation() << 0.0, 0.0, -1.0;
-
-    float theta = 1.0 * M_PI/180.0; // The angle of rotation in radians
-    // The same rotation matrix as before; theta radians arround Z axis
-    transform_2.rotate (Eigen::AngleAxisd (theta, Eigen::Vector3d::UnitZ()));
+    transform_2.translation() << last_t;
+    transform_2.rotate (last_R);
 
     // Print the transformation
     printf ("\nMethod #2: using an Affine3f\n");
@@ -69,6 +147,21 @@ private:
     std::cout << "p2 " << p2 << std::endl;
     p2 = transform_2 * p2;
     std::cout << "p2 " << p2 << std::endl;
+
+     printf ("\nMethod #2: using a Matrix4f\n");
+    Eigen::Matrix4d transform_3 = Eigen::Matrix4d::Identity();
+    transform_3.block<3,3>(0,0) = last_R;
+    transform_3.block<3,1>(0,3) = last_t;
+
+    Eigen::Vector4d p1_h, p2_h;
+    p1_h << p1(0), p1(1), p1(2), 1.0;
+    std::cout << transform_3 << std::endl;
+    p2_h = transform_3 * p1_h;
+    std::cout << "p2_h " << p2_h << std::endl;
+    p2_h = transform_2 * p2_h;
+    std::cout << "p2_h " << p2_h << std::endl;
+    p2_h = transform_2 * p2_h;
+    std::cout << "p2_h " << p2_h << std::endl;
 
   }
 
