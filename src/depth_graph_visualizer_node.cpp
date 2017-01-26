@@ -1,6 +1,7 @@
 #include <Eigen/Dense>
 typedef double Scalar;
 typedef Eigen::Matrix<Scalar, 3, 1> Vector3;
+typedef Eigen::Matrix<Scalar, 4, 1> Vector4;
 typedef Eigen::Matrix<Scalar, 3, 3> Matrix3;
 
 #include <ros/ros.h>
@@ -62,8 +63,8 @@ private:
     transform_1.block<3,1>(0,3) = -1 * R_1.transpose() * t_1;
 
     Eigen::Matrix4d transform_2 = Eigen::Matrix4d::Identity();
-    transform_1.block<3,3>(0,0) = R_2;
-    transform_1.block<3,1>(0,3) = t_2;
+    transform_2.block<3,3>(0,0) = R_2;
+    transform_2.block<3,1>(0,3) = t_2;
 
     return transform_1*transform_2;
   }
@@ -78,92 +79,23 @@ private:
       return;
     }
     
-    Matrix3 R = constructR(pose);
-    Vector3 t = constructt(pose);
-    
-    Eigen::Matrix4d transform_1 = Eigen::Matrix4d::Identity();
-    transform_1.block<3,3>(0,0) = R;
-    // Define translation
-    transform_1 (0,3) = t(0);
-    transform_1 (1,3) = t(1);
-    transform_1 (2,3) = t(2);
-    //std::cout << "transform 1 " << std::endl;
-    //std::cout << transform_1 << std::endl;
-    current_transform = findTransform(R, t, last_R, last_t);
-    last_R = R;
-    last_t = t;
 
 		counter++;
 		if (counter >= 3) {
 			counter = 0;
 			ROS_INFO("GOT POSE");
+      Matrix3 R = constructR(pose);
+      Vector3 t = constructt(pose);
+      
+      current_transform = findTransform(R, t, last_R, last_t);
+      last_R = R;
+      last_t = t;
 			
 			PublishFovMarkers();
       //PrintToyTransform();
       //PrintVectorPractice();
 		}
 	}
-
-  void PrintVectorPractice() {
-    std::vector<int> v;
-    int num = 6;
-    for (int i = 0; i < num; i++) {
-      v.push_back(i);
-    } 
-
-    std::cout << "Before rotating " << std::endl;
-    for (int i = 0; i < num; i++) {
-      std::cout << v.at(i) << std::endl;;
-    } 
-
-    std::cout << "After rotating " << std::endl;
-    rotate(v.begin(),v.end()-1,v.end());
-    for (int i = 0; i < num; i++) {
-      std::cout << v.at(i) << std::endl;;
-    } 
-
-    std::cout << "New at top " << std::endl;
-    v.at(0) = -1;
-    for (int i = 0; i < num; i++) {
-      std::cout << v.at(i) << std::endl;;
-    } 
-
-  }
-
-  void PrintToyTransform() {
-    Vector3 p1, p2;
-    p1 << 1,1,1;
-    std::cout << "p1 " << p1 << std::endl;
-    Eigen::Affine3d transform_2 = Eigen::Affine3d::Identity();
-    transform_2.translation() << last_t;
-    transform_2.rotate (last_R);
-
-    // Print the transformation
-    printf ("\nMethod #2: using an Affine3f\n");
-    std::cout << transform_2.matrix() << std::endl;
-    p2 = transform_2 * p1;
-    std::cout << "p2 " << p2 << std::endl;
-    p2 = transform_2 * p2;
-    std::cout << "p2 " << p2 << std::endl;
-    p2 = transform_2 * p2;
-    std::cout << "p2 " << p2 << std::endl;
-
-     printf ("\nMethod #2: using a Matrix4f\n");
-    Eigen::Matrix4d transform_3 = Eigen::Matrix4d::Identity();
-    transform_3.block<3,3>(0,0) = last_R;
-    transform_3.block<3,1>(0,3) = last_t;
-
-    Eigen::Vector4d p1_h, p2_h;
-    p1_h << p1(0), p1(1), p1(2), 1.0;
-    std::cout << transform_3 << std::endl;
-    p2_h = transform_3 * p1_h;
-    std::cout << "p2_h " << p2_h << std::endl;
-    p2_h = transform_2 * p2_h;
-    std::cout << "p2_h " << p2_h << std::endl;
-    p2_h = transform_2 * p2_h;
-    std::cout << "p2_h " << p2_h << std::endl;
-
-  }
 
   void PublishFovMarkers() {
     for (int fov_id = 0; fov_id < 9; fov_id++) {
@@ -172,20 +104,18 @@ private:
   }
 
   Vector3 transformToCurrentRDFframe(Vector3 position_other_rdf_frame, int fov_id) {
-    Eigen::Affine3d transform_2 = Eigen::Affine3d::Identity();
+    Eigen::Matrix4d transform_2 = Eigen::Matrix4d::Identity();
 
-    // Define a translation of -1 meters on the z axis.
-    transform_2.translation() << 0.0, 0.0, -1.0;
+    Vector4 position_current_rdf_frame;
+    position_current_rdf_frame << position_other_rdf_frame(0), position_other_rdf_frame(1), position_other_rdf_frame(2), 1.0;
 
-    float theta = 3.0 * M_PI/180.0; // The angle of rotation in radians
-    // The same rotation matrix as before; theta radians arround Z axis
-    transform_2.rotate (Eigen::AngleAxisd (theta, Eigen::Vector3d::UnitZ()));
-
-    Vector3 position_current_rdf_frame = position_other_rdf_frame;
     for (int i = 0; i < fov_id; i++) {
-      position_current_rdf_frame = transform_2 * position_current_rdf_frame;
+      position_current_rdf_frame = current_transform * position_current_rdf_frame;
     }
-    return position_current_rdf_frame;
+
+    Vector3 answer;
+    answer << position_current_rdf_frame(0), position_current_rdf_frame(1), position_current_rdf_frame(2);
+    return answer;
   }
 
 	void PublishFovMarker(int fov_id) {
@@ -346,6 +276,67 @@ private:
 	Vector3 VectorFromPose(geometry_msgs::PoseStamped const& pose) {
 		return Vector3(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
 	}
+
+  void PrintVectorPractice() {
+    std::vector<int> v;
+    int num = 6;
+    for (int i = 0; i < num; i++) {
+      v.push_back(i);
+    } 
+
+    std::cout << "Before rotating " << std::endl;
+    for (int i = 0; i < num; i++) {
+      std::cout << v.at(i) << std::endl;;
+    } 
+
+    std::cout << "After rotating " << std::endl;
+    rotate(v.begin(),v.end()-1,v.end());
+    for (int i = 0; i < num; i++) {
+      std::cout << v.at(i) << std::endl;;
+    } 
+
+    std::cout << "New at top " << std::endl;
+    v.at(0) = -1;
+    for (int i = 0; i < num; i++) {
+      std::cout << v.at(i) << std::endl;;
+    } 
+
+  }
+
+  void PrintToyTransform() {
+    Vector3 p1, p2;
+    p1 << 1,1,1;
+    std::cout << "p1 " << p1 << std::endl;
+    Eigen::Affine3d transform_2 = Eigen::Affine3d::Identity();
+    transform_2.translation() << last_t;
+    transform_2.rotate (last_R);
+
+    // Print the transformation
+    printf ("\nMethod #2: using an Affine3f\n");
+    std::cout << transform_2.matrix() << std::endl;
+    p2 = transform_2 * p1;
+    std::cout << "p2 " << p2 << std::endl;
+    p2 = transform_2 * p2;
+    std::cout << "p2 " << p2 << std::endl;
+    p2 = transform_2 * p2;
+    std::cout << "p2 " << p2 << std::endl;
+
+     printf ("\nMethod #2: using a Matrix4f\n");
+    Eigen::Matrix4d transform_3 = Eigen::Matrix4d::Identity();
+    transform_3.block<3,3>(0,0) = last_R;
+    transform_3.block<3,1>(0,3) = last_t;
+
+    Eigen::Vector4d p1_h, p2_h;
+    p1_h << p1(0), p1(1), p1(2), 1.0;
+    std::cout << transform_3 << std::endl;
+    p2_h = transform_3 * p1_h;
+    std::cout << "p2_h " << p2_h << std::endl;
+    p2_h = transform_2 * p2_h;
+    std::cout << "p2_h " << p2_h << std::endl;
+    p2_h = transform_2 * p2_h;
+    std::cout << "p2_h " << p2_h << std::endl;
+
+  }
 
 
 	std::string drawing_frame = "r200_depth_optical_frame";
