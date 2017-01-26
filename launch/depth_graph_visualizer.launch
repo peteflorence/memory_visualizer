@@ -1,0 +1,9 @@
+<launch>
+
+	<arg name="noise_scaling" default="0.00"/>
+
+	<param name="noise_scaling" type="double" value="$(arg noise_scaling)"/>
+    <node pkg="memory_visualizer" type="depth_graph_visualizer_node" name="depth_graph_visualizer_node" output="screen">
+    </node>
+   
+</launch>

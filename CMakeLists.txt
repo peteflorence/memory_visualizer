@@ -48,6 +48,11 @@ find_package(orocos_kdl REQUIRED)
 find_library(OROCOS_KDL orocos-kdl)
 set(orocos_kdl_LIBRARIES ${OROCOS_KDL})
 
+add_library( memory_visualizer_lib src/depth_pose.cpp)
+
 add_executable( memory_visualizer_node src/memory_visualizer_node.cpp )
-target_link_libraries( memory_visualizer_node  ${catkin_LIBRARIES} orocos-kdl)
+target_link_libraries( memory_visualizer_node memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)
+
+add_executable( depth_graph_visualizer_node src/depth_graph_visualizer_node.cpp )
+target_link_libraries( depth_graph_visualizer_node memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)
 
