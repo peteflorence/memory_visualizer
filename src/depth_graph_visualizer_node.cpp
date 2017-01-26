@@ -34,16 +34,16 @@ public:
 	
 private:
 
-	int counter = 0; // this just reduces to 4 Hz from 100 Hz
+	int counter = 0; // this just reduces to 33 Hz from 100 Hz
 
 	void OnPose( geometry_msgs::PoseStamped const& pose ) {
 		counter++;
-		if (counter >= 25) {
+		if (counter >= 3) {
 			counter = 0;
 			ROS_INFO("GOT POSE");
 			
 			PublishFovMarkers();
-      PrintToyTransform();
+      //PrintToyTransform();
 		}
 	}
 
@@ -73,13 +73,26 @@ private:
   }
 
   void PublishFovMarkers() {
-    for (int fov_id = 0; fov_id < 20; fov_id++) {
+    for (int fov_id = 0; fov_id < 9; fov_id++) {
       PublishFovMarker(fov_id);
     }
   }
 
-  Vector3 transformToCurrentRDFframe(Vector3 position_other_rdf_frame) {
+  Vector3 transformToCurrentRDFframe(Vector3 position_other_rdf_frame, int fov_id) {
+    Eigen::Affine3d transform_2 = Eigen::Affine3d::Identity();
 
+    // Define a translation of -1 meters on the z axis.
+    transform_2.translation() << 0.0, 0.0, -1.0;
+
+    float theta = 3.0 * M_PI/180.0; // The angle of rotation in radians
+    // The same rotation matrix as before; theta radians arround Z axis
+    transform_2.rotate (Eigen::AngleAxisd (theta, Eigen::Vector3d::UnitZ()));
+
+    Vector3 position_current_rdf_frame = position_other_rdf_frame;
+    for (int i = 0; i < fov_id; i++) {
+      position_current_rdf_frame = transform_2 * position_current_rdf_frame;
+    }
+    return position_current_rdf_frame;
   }
 
 	void PublishFovMarker(int fov_id) {
@@ -90,17 +103,15 @@ private:
 	    marker.id = fov_id;
   		marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
   		marker.action = visualization_msgs::Marker::ADD;
-      Vector3 p;
-      p << 0,0,0;
+      Vector3 p = transformToCurrentRDFframe(Vector3(0,0,0), fov_id);
 
-    	marker.pose.position.x = 0.0;
-    	marker.pose.position.y = 0.0;
-  		marker.pose.position.z = 0.0;
+    	marker.pose.position.x = p(0);
+    	marker.pose.position.y = p(1);
+  		marker.pose.position.z = p(2);
    		marker.pose.orientation.x = 0.0;
   		marker.pose.orientation.y = 0.0;
    		marker.pose.orientation.z = 0.0;
     	marker.pose.orientation.w = 1.0;
-    	marker.pose.position.x = 0.0;
      	marker.scale.x = 1.0;
      	marker.scale.y = 1.0;
      	marker.scale.z = 1.0;
@@ -110,10 +121,10 @@ private:
      	marker.color.a = 1.0;
 
      	std::vector<Vector3> fov_corners;
-     	fov_corners.push_back(Vector3(7,5.25,10)); // bottom right
-     	fov_corners.push_back(Vector3(7,-5.25,10)); // top right
-     	fov_corners.push_back(Vector3(-7,-5.25,10)); // top left
-     	fov_corners.push_back(Vector3(-7,5.25,10)); // bottom left  
+     	fov_corners.push_back(transformToCurrentRDFframe(Vector3(7,5.25,10),fov_id)); // bottom right
+     	fov_corners.push_back(transformToCurrentRDFframe(Vector3(7,-5.25,10),fov_id)); // top right
+     	fov_corners.push_back(transformToCurrentRDFframe(Vector3(-7,-5.25,10),fov_id)); // top left
+     	fov_corners.push_back(transformToCurrentRDFframe(Vector3(-7,5.25,10),fov_id)); // bottom left  
 
      	int j = 0;
      	for (int i = 0; i < 4; i++) {
@@ -133,7 +144,7 @@ private:
      	for (int i = 0; i < 4; i++) {
      		j = i+1;
      		if (j == 4) {j = 0;}; // connect back around
-     		BuildLineOfFOV(Vector3(0,0,0), fov_corners.at(i), marker, fov_id);
+     		BuildLineOfFOV(transformToCurrentRDFframe(Vector3(0,0,0),fov_id), fov_corners.at(i), marker, fov_id);
      		BuildLineOfFOV(fov_corners.at(i), fov_corners.at(j), marker, fov_id);
      	}
      	fov_pub.publish( marker );
@@ -142,7 +153,7 @@ private:
 	}
 
 	void BuildSideOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker, int fov_id) {
-		Vector3 corner_0 = Vector3(0,0,0);
+		Vector3 corner_0 = transformToCurrentRDFframe(Vector3(0,0,0), fov_id);
 
 		geometry_msgs::Point p;
 		p.x = corner_0(0);
@@ -164,7 +175,7 @@ private:
    		marker.points.push_back(p3);
 
       std_msgs::ColorRGBA c;
-      if (fov_id == 1) {
+      if (fov_id == 0) {
         c.r = 1.0;
         c.g = 1.0;
         c.b = 0.0;
@@ -197,7 +208,7 @@ private:
    		marker.points.push_back(p2);
 
    		std_msgs::ColorRGBA c;
-      if (fov_id == 1) {
+      if (fov_id == 0) {
         c.r = 1.0;
         c.g = 1.0;
         c.b = 0.0;
