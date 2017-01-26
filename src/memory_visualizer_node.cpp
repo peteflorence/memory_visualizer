@@ -34,7 +34,7 @@ public:
 	
 private:
 
-	int counter = 0;
+	int counter = 0; // this just reduces to 4 Hz from 100 Hz
 	int fov_id = 0;
 
 	void OnPose( geometry_msgs::PoseStamped const& pose ) {
@@ -127,11 +127,19 @@ private:
    		marker.points.push_back(p2);
    		marker.points.push_back(p3);
 
-   		std_msgs::ColorRGBA c;
-   		c.r = 1.0;
-   		c.g = 1.0;
-   		c.b = 0.0;
-   		c.a = 0.15;
+      std_msgs::ColorRGBA c;
+      if (fov_id == 1) {
+        c.r = 1.0;
+        c.g = 1.0;
+        c.b = 0.0;
+        c.a = 0.15;
+      }
+      else {
+        c.r = 0.1;
+        c.g = 0.1;
+        c.b = 0.1;
+        c.a = 0.05;  
+      }
    		marker.colors.push_back(c);
    		marker.colors.push_back(c);
   		marker.colors.push_back(c);       	    	
@@ -154,10 +162,18 @@ private:
    		marker.points.push_back(p2);
 
    		std_msgs::ColorRGBA c;
-   		c.r = 1.0;
-   		c.g = 1.0;
-   		c.b = 0.0;
-   		c.a = 0.50;
+      if (fov_id == 1) {
+        c.r = 1.0;
+        c.g = 1.0;
+        c.b = 0.0;
+        c.a = 0.50;
+      }
+      else {
+        c.r = 0.1;
+        c.g = 0.1;
+        c.b = 0.1;
+        c.a = 0.50;  
+      }
    		marker.colors.push_back(c);
    		marker.colors.push_back(c);      	    	
 	}
