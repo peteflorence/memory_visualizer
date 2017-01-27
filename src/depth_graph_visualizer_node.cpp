@@ -40,6 +40,7 @@ private:
   std::vector<Eigen::Matrix4d> odometries;
 
   geometry_msgs::PoseStamped last_pose;
+  Matrix3 BodyToRDF;
 
   void OnPose( geometry_msgs::PoseStamped const& pose ) {
     if (!initiated) {
@@ -54,7 +55,7 @@ private:
       transform_identity (1,1) = cos (theta);
 
       std::cout << transform_identity << std::endl;
-      for (int i = 0; i < 50; i++) {
+      for (int i = 0; i < 200; i++) {
         odometries.push_back(transform_identity);
       }
       initiated = true;
@@ -62,7 +63,8 @@ private:
     }
     
     counter++;
-    if (counter >= 25) {
+    if (counter >= 0) {
+      BodyToRDF = GetBodyToRDFRotationMatrix(); // could do only once later -- being safe for now
       counter = 0;
       ROS_INFO("GOT POSE");
 
@@ -76,12 +78,12 @@ private:
 
       last_pose = pose;
       PublishPositionMarkers();
-      //PublishFovMarkers();
+      PublishFovMarkerSimple(0);
     }
   }
 
   Matrix3 constructR( geometry_msgs::PoseStamped const& pose ) {
-    Eigen::Quaternion<Scalar> quat(pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
+    Eigen::Quaternion<Scalar> quat(pose.pose.orientation.w, pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z);
     return quat.toRotationMatrix();
   }
 
@@ -91,10 +93,8 @@ private:
 
   Eigen::Matrix4d findTransform(Matrix3 R_1, Vector3 t_1, Matrix3 R_2, Vector3 t_2) {
     Eigen::Matrix4d transform_1 = Eigen::Matrix4d::Identity();
-    std::cout << R_1 << std::endl;
     transform_1.block<3,3>(0,0) = R_1.transpose();
     transform_1.block<3,1>(0,3) = -1.0 * R_1.transpose() * t_1; // T_1^W inverse
-    std::cout << transform_1 << std::endl;
 
     Eigen::Matrix4d transform_2 = Eigen::Matrix4d::Identity();
     transform_2.block<3,3>(0,0) = R_2;
@@ -158,6 +158,53 @@ private:
     return Vector3(previous_position(0), previous_position(1), previous_position(2));
   }
 
+  void PublishFovMarkerSimple(int fov_id) {
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = drawing_frame;
+    marker.header.stamp = ros::Time::now();
+    marker.ns = "fov_simple";
+    marker.id = fov_id+100;
+    marker.type = visualization_msgs::Marker::SPHERE;
+    marker.action = visualization_msgs::Marker::ADD;
+    // // start in current rdf frame
+    // Vector3 p = Vector3(0.0,0.0,1.0);
+    // // rotate to current body frame
+    // std::cout << "p" << std::endl;
+    // std::cout << p << std::endl;
+    // p = BodyToRDF.inverse() * p;
+    // std::cout << p << std::endl;
+
+    Vector3 p = Vector3(1.0, 0.0, 0.0);
+    // put into world
+    Matrix3 R = constructR(last_pose);
+    Vector3 t = constructt(last_pose);
+
+    Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
+    transform.block<3,3>(0,0) = R;
+    transform.block<3,1>(0,3) = t;
+
+    // Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
+    // transform.block<3,3>(0,0) = R.transpose();
+    // transform.block<3,1>(0,3) = -1.0 * R.transpose() * t;
+
+    Vector4 p_aug;
+    p_aug << p, 1.0;
+    p_aug = transform * p_aug;
+
+    marker.pose.position.x = p_aug(0);
+    marker.pose.position.y = p_aug(1);
+    marker.pose.position.z = p_aug(2);
+    marker.scale.x = 0.8;
+    marker.scale.y = 0.8;
+    marker.scale.z = 0.8;
+    marker.color.a = 0.40; // Don't forget to set the alpha!
+    marker.color.r = 1.0;
+    marker.color.g = 1.0;
+    marker.color.b = 0.0;
+    fov_pub.publish( marker );
+
+  }
+
 	void PublishFovMarker(int fov_id) {
 		visualization_msgs::Marker marker;
     marker.header.frame_id = drawing_frame;
@@ -166,7 +213,8 @@ private:
 	  marker.id = fov_id;
   	marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
   	marker.action = visualization_msgs::Marker::ADD;
-    Vector3 p = transformToCurrentRDFframe(Vector3(0,0,0), fov_id);
+    // start in current rdf frame
+    Vector3 p = Vector3(0,0,1);
 
   	marker.pose.position.x = p(0);
   	marker.pose.position.y = p(1);
@@ -331,6 +379,20 @@ private:
     	tf2::doTransform(pose_ortho_body_vector, pose_vector_world_frame, tf);
     	return VectorFromPose(pose_vector_world_frame);
 	}
+
+  Matrix3 GetBodyToRDFRotationMatrix() {
+    geometry_msgs::TransformStamped tf;
+      try {
+        tf = tf_buffer_.lookupTransform("r200_depth_optical_frame", "body", 
+                                    ros::Time(0), ros::Duration(1/30.0));
+      } catch (tf2::TransformException &ex) {
+        ROS_ERROR("%s", ex.what());
+        return Matrix3();
+      }
+      Eigen::Quaternion<Scalar> quat(tf.transform.rotation.w, tf.transform.rotation.x, tf.transform.rotation.y, tf.transform.rotation.z);
+      Matrix3 R = quat.toRotationMatrix();
+      return R;
+  }
 
 	geometry_msgs::PoseStamped PoseFromVector3(Vector3 const& position, std::string const& frame) {
 		geometry_msgs::PoseStamped pose;
