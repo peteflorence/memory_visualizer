@@ -91,10 +91,6 @@ private:
     marker.type = visualization_msgs::Marker::SPHERE;
     marker.action = visualization_msgs::Marker::ADD;
 
-    // this worked
-    // Vector3 current_position_world_frame = VectorFromPose(last_pose);
-    // Vector3 position_world_frame = transformFromCurrentPoseThroughChain(current_position_world_frame, fov_id); 
-
     Vector3 position_previous_body_frame(0,0,0);
     Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(fov_id);
     Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform);
@@ -111,13 +107,6 @@ private:
     marker.color.b = 1.0;
     fov_pub.publish( marker );
   } 
-
-  Vector3 transformFromCurrentPoseThroughChain(Vector3 current_position, int fov_id) {
-    for (int i = 0; i < fov_id; i++) {
-      current_position = applyTransform(current_position, odometries.at(i));
-    }
-    return current_position;
-  }
 
   Eigen::Matrix4d transformFromPreviousBodyToWorld(int fov_id) {
     Eigen::Matrix4d transform = transform_body_to_world;
