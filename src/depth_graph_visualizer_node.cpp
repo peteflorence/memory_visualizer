@@ -108,7 +108,7 @@ private:
   Eigen::Matrix4d transformFromCurrentBodyToPreviousBody(int fov_id) {
     Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
     for (int i = 0; i < fov_id; i++) {
-      transform = odometries.at(i) * transform;
+      transform = transform * invertTransform(odometries.at(i));
     }
     return transform;
   }
@@ -137,7 +137,7 @@ private:
       Vector3 position_current_body_frame(-1.0,0.0,0.0);
       Eigen::Matrix4d transform_2 = transformFromCurrentBodyToPreviousBody(fov_id);
       Vector3 position_previous_body_frame = applyTransform(position_previous_body_frame, transform_2);
-      if (position_previous_body_frame(1) > 0) {
+      if (position_previous_body_frame(0) > 0) {
         color_in_fov = true;
       } 
       else {
