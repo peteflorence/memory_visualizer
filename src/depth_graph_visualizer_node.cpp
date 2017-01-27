@@ -41,6 +41,8 @@ private:
 
   geometry_msgs::PoseStamped last_pose;
   Matrix3 BodyToRDF;
+  Matrix3 BodyToRDF_inverse;
+  Eigen::Matrix4d transform_body_to_world; // better if not class variable
 
   void OnPose( geometry_msgs::PoseStamped const& pose ) {
     if (!initiated) {
@@ -58,6 +60,7 @@ private:
     counter++;
     if (counter >= 0) {
       BodyToRDF = GetBodyToRDFRotationMatrix(); // could do only once later -- being safe for now
+      BodyToRDF_inverse = BodyToRDF.inverse();
       counter = 0;
       ROS_INFO("GOT POSE");
 
@@ -65,6 +68,7 @@ private:
 
       last_pose = pose;
       PublishPositionMarkers();
+      PublishFovMarker(0);
       PublishFovMarkerSimple(0);
     }
   }
@@ -98,6 +102,13 @@ private:
     inverted_transform.block<3,3>(0,0) = R.transpose();
     inverted_transform.block<3,1>(0,3) = -1.0 * R.transpose() * t;
     return inverted_transform;
+  }
+
+  Vector3 applyTransform(Vector3 p, Eigen::Matrix4d transform) {
+    Vector4 p_aug;
+    p_aug << p, 1.0;
+    p_aug = transform * p_aug;
+    return Vector3(p_aug(0), p_aug(1), p_aug(2));
   }
 
   void AddToOdometries(Eigen::Matrix4d current_transform) {
@@ -163,34 +174,18 @@ private:
     marker.id = fov_id+100;
     marker.type = visualization_msgs::Marker::SPHERE;
     marker.action = visualization_msgs::Marker::ADD;
+    
     // // start in current rdf frame
-    // Vector3 p = Vector3(0.0,0.0,1.0);
+    Vector3 p = Vector3(0.0,0.0,1.0);
     // // rotate to current body frame
-    // std::cout << "p" << std::endl;
-    // std::cout << p << std::endl;
-    // p = BodyToRDF.inverse() * p;
-    // std::cout << p << std::endl;
-
-    Vector3 p = Vector3(1.0, 0.0, 0.0);
+    p = BodyToRDF_inverse * p;
     // put into world
-    Matrix3 R = constructR(last_pose);
-    Vector3 t = constructt(last_pose);
+    transform_body_to_world = findTransform(last_pose);
+    p = applyTransform(p, transform_body_to_world);
 
-    Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
-    transform.block<3,3>(0,0) = R;
-    transform.block<3,1>(0,3) = t;
-
-    // Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
-    // transform.block<3,3>(0,0) = R.transpose();
-    // transform.block<3,1>(0,3) = -1.0 * R.transpose() * t;
-
-    Vector4 p_aug;
-    p_aug << p, 1.0;
-    p_aug = transform * p_aug;
-
-    marker.pose.position.x = p_aug(0);
-    marker.pose.position.y = p_aug(1);
-    marker.pose.position.z = p_aug(2);
+    marker.pose.position.x = p(0);
+    marker.pose.position.y = p(1);
+    marker.pose.position.z = p(2);
     marker.scale.x = 0.8;
     marker.scale.y = 0.8;
     marker.scale.z = 0.8;
@@ -211,11 +206,16 @@ private:
   	marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
   	marker.action = visualization_msgs::Marker::ADD;
     // start in current rdf frame
-    Vector3 p = Vector3(0,0,1);
+    Vector3 p = Vector3(0.0,0.0,0.0);
+    // rotate to current body frame
+    p = BodyToRDF.inverse() * p;
+    // put into world
+    transform_body_to_world = findTransform(last_pose);
+    p = applyTransform(p, transform_body_to_world);
 
-  	marker.pose.position.x = p(0);
-  	marker.pose.position.y = p(1);
-		marker.pose.position.z = p(2);
+  	marker.pose.position.x = 0;
+  	marker.pose.position.y = 0;
+		marker.pose.position.z = 0;
  		marker.pose.orientation.x = 0.0;
 		marker.pose.orientation.y = 0.0;
  		marker.pose.orientation.z = 0.0;
@@ -229,10 +229,15 @@ private:
    	marker.color.a = 1.0;
 
    	std::vector<Vector3> fov_corners;
-   	fov_corners.push_back(transformToCurrentRDFframe(Vector3(7,5.25,10),fov_id)); // bottom right
-   	fov_corners.push_back(transformToCurrentRDFframe(Vector3(7,-5.25,10),fov_id)); // top right
-   	fov_corners.push_back(transformToCurrentRDFframe(Vector3(-7,-5.25,10),fov_id)); // top left
-   	fov_corners.push_back(transformToCurrentRDFframe(Vector3(-7,5.25,10),fov_id)); // bottom left  
+    Vector3 bottom_right = BodyToRDF_inverse * Vector3(7,5.25,10);
+    Vector3 top_right = BodyToRDF_inverse * Vector3(7,-5.25,10);
+    Vector3 top_left = BodyToRDF_inverse * Vector3(-7,-5.25,10);
+    Vector3 bottom_left = BodyToRDF_inverse * Vector3(-7,5.25,10);
+
+   	fov_corners.push_back(applyTransform(bottom_right, transform_body_to_world)); // bottom right
+    fov_corners.push_back(applyTransform(top_right, transform_body_to_world)); // top right
+    fov_corners.push_back(applyTransform(top_left, transform_body_to_world)); // top left
+    fov_corners.push_back(applyTransform(bottom_left, transform_body_to_world)); // bottom left    
 
    	int j = 0;
    	for (int i = 0; i < 4; i++) {
@@ -252,7 +257,7 @@ private:
    	for (int i = 0; i < 4; i++) {
    		j = i+1;
    		if (j == 4) {j = 0;}; // connect back around
-   		BuildLineOfFOV(transformToCurrentRDFframe(Vector3(0,0,0),fov_id), fov_corners.at(i), marker, fov_id);
+   		BuildLineOfFOV(applyTransform(Vector3(0,0,0), transform_body_to_world), fov_corners.at(i), marker, fov_id); // don't need to rotate 0,0,0
    		BuildLineOfFOV(fov_corners.at(i), fov_corners.at(j), marker, fov_id);
    	}
    	fov_pub.publish( marker );
@@ -260,7 +265,7 @@ private:
 	}
 
 	void BuildSideOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker, int fov_id) {
-		Vector3 corner_0 = transformToCurrentRDFframe(Vector3(0,0,0), fov_id);
+		Vector3 corner_0 = applyTransform(Vector3(0,0,0), transform_body_to_world); // don't need to rotate 0,0,0
 
 		geometry_msgs::Point p;
 		p.x = corner_0(0);
