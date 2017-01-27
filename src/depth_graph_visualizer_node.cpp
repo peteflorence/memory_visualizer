@@ -65,7 +65,8 @@ private:
       last_pose = pose;
 
       PublishPositionMarkers();
-      PublishFovMarkers();
+      PublishFovMarkerSimple(3);
+      //PublishFovMarkers();
     }
   }
 
@@ -107,15 +108,47 @@ private:
     fov_pub.publish( marker );
   } 
 
-  Vector3 transformFromCurrentPoseThroughChain(Vector3 current_position, int fov_id) {
-    Vector4 previous_position;
-    previous_position << current_position(0), current_position(1), current_position(2), 1.0;
+  void PublishFovMarkerSimple(int fov_id) {   
+    visualization_msgs::Marker marker;    
+    marker.header.frame_id = drawing_frame;   
+    marker.header.stamp = ros::Time::now();   
+    marker.ns = "fov_simple";   
+    marker.id = fov_id+100;   
+    marker.type = visualization_msgs::Marker::SPHERE;   
+    marker.action = visualization_msgs::Marker::ADD;    
+         
+    // // start in current rdf frame    
+    Vector3 p = Vector3(0.0,0.0,1.0);   
+    // // rotate to current body frame    
+    p = BodyToRDF_inverse * p;    
+    // put into world   
 
-    for (int i = 0; i < fov_id; i++) {
-      previous_position = odometries.at(i) * previous_position;
+    for (int i = fov_id-1; i>=0; i--) {
+      std::cout << "i " << i << std::endl;
+      p = applyTransform(p, Eigen::Matrix4d::Identity());
     }
 
-    return Vector3(previous_position(0), previous_position(1), previous_position(2));
+    transform_body_to_world = findTransform(last_pose);   
+    p = applyTransform(p, transform_body_to_world);   
+     
+    marker.pose.position.x = p(0);    
+    marker.pose.position.y = p(1);    
+    marker.pose.position.z = p(2);    
+    marker.scale.x = 0.8;   
+    marker.scale.y = 0.8;   
+    marker.scale.z = 0.8;   
+    marker.color.a = 0.40; // Don't forget to set the alpha!    
+    marker.color.r = 1.0;   
+    marker.color.g = 1.0;   
+    marker.color.b = 0.0;   
+    fov_pub.publish( marker );     
+   }
+
+  Vector3 transformFromCurrentPoseThroughChain(Vector3 current_position, int fov_id) {
+    for (int i = 0; i < fov_id; i++) {
+      current_position = applyTransform(current_position, odometries.at(i));
+    }
+    return current_position;
   }
 
   void PublishFovMarkers() {
@@ -141,14 +174,14 @@ private:
       Vector3 bottom_left = BodyToRDF_inverse * Vector3(-7,5.25,10);
       Vector3 body = Vector3(0,0,0);
 
-      for (int i = fov_id-1; i >= 0; i--) {
+      for (int i = 0; i < fov_id; i++) {
         // convert through chain
-        Eigen::Matrix4d inverted_transform = invertTransform(odometries.at(i));
-        bottom_right = applyTransform(bottom_right, inverted_transform);
-        top_right = applyTransform(top_right, inverted_transform);
-        top_left = applyTransform(top_left, inverted_transform);
-        bottom_left = applyTransform(bottom_left, inverted_transform);
-        body = applyTransform(body, inverted_transform);
+        Eigen::Matrix4d transform = odometries.at(i);
+        bottom_right = applyTransform(bottom_right, transform);
+        top_right = applyTransform(top_right, transform);
+        top_left = applyTransform(top_left, transform);
+        bottom_left = applyTransform(bottom_left, transform);
+        body = applyTransform(body, transform);
       }
 
     body = applyTransform(body, transform_body_to_world); // don't need to rotate 0,0,0
