@@ -65,7 +65,7 @@ private:
       last_pose = pose;
 
       PublishPositionMarkers();
-      PublishFovMarkersSimple();
+      PublishFovMarkers();
       //PublishFovMarkers();
     }
   }
@@ -192,22 +192,14 @@ private:
       Vector3 bottom_left = BodyToRDF_inverse * Vector3(-7,5.25,10);
       Vector3 body = Vector3(0,0,0);
 
-      for (int i = 0; i < fov_id; i++) {
-        // convert through chain
-        Eigen::Matrix4d transform = odometries.at(i);
-        bottom_right = applyTransform(bottom_right, transform);
-        top_right = applyTransform(top_right, transform);
-        top_left = applyTransform(top_left, transform);
-        bottom_left = applyTransform(bottom_left, transform);
-        body = applyTransform(body, transform);
-      }
+      Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(fov_id);
 
-    body = applyTransform(body, transform_body_to_world); // don't need to rotate 0,0,0
-    Vector3 corner_1 = applyTransform(bottom_right, transform_body_to_world);
-    Vector3 corner_2 = applyTransform(top_right, transform_body_to_world);
-    Vector3 corner_3 = applyTransform(top_left, transform_body_to_world);
-    Vector3 corner_4 = applyTransform(bottom_left, transform_body_to_world);
-    PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4);
+      body = applyTransform(body, transform); // don't need to rotate 0,0,0
+      Vector3 corner_1 = applyTransform(bottom_right, transform);
+      Vector3 corner_2 = applyTransform(top_right, transform);
+      Vector3 corner_3 = applyTransform(top_left, transform);
+      Vector3 corner_4 = applyTransform(bottom_left, transform);
+      PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4);
    }
  }
 
