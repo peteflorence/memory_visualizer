@@ -104,7 +104,17 @@ private:
     return transform;
   }
 
+  // this function under construction
+  Eigen::Matrix4d transformFromCurrentBodyToPreviousBody(int fov_id) {
+    Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
+    for (int i = 0; i < fov_id; i++) {
+      transform = odometries.at(i) * transform;
+    }
+    return transform;
+  }
+
   void PublishFovMarkers() {
+    bool color_in_fov = false;
     for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
       // FIND CORNERS
 
@@ -124,16 +134,26 @@ private:
 
 
       // DETERMINE IF -1 in current body frame is in front of previous pose
-
       Vector3 position_current_body_frame(-1.0,0.0,0.0);
-      PublishPositionMarker(position_current_body_frame);
-
-      PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4);
+      Eigen::Matrix4d transform_2 = transformFromCurrentBodyToPreviousBody(fov_id);
+      Vector3 position_previous_body_frame = applyTransform(position_previous_body_frame, transform_2);
+      if (position_previous_body_frame(1) > 0) {
+        color_in_fov = true;
+      } 
+      else {
+        color_in_fov = false;
+      }
+      PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4, color_in_fov);
    }
+  
+   Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(0);
+   Vector3 position_current_body_frame(-1.0,0.0,0.0);
+   Vector3 position_world_frame = applyTransform(position_current_body_frame, transform);
+   PublishPositionMarker(position_world_frame);
  }
 
-	void PublishFovMarker(int fov_id, Vector3 body, Vector3 corner_1, Vector3 corner_2, Vector3 corner_3, Vector3 corner_4) {
-		std::vector<visualization_msgs::Marker> markers = BuildFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4);
+	void PublishFovMarker(int fov_id, Vector3 body, Vector3 corner_1, Vector3 corner_2, Vector3 corner_3, Vector3 corner_4, bool color_in_fov) {
+		std::vector<visualization_msgs::Marker> markers = BuildFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4, color_in_fov);
    	fov_pub.publish( markers.at(0) );
     fov_pub.publish( markers.at(1) );
 	}
