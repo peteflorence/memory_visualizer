@@ -53,6 +53,8 @@ add_library( memory_visualizer_lib src/depth_pose.cpp)
 add_executable( memory_visualizer_node src/memory_visualizer_node.cpp )
 target_link_libraries( memory_visualizer_node memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)
 
-add_executable( depth_graph_visualizer_node src/depth_graph_visualizer_node.cpp )
-target_link_libraries( depth_graph_visualizer_node memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)
+add_executable( depth_graph_visualizer_node src/depth_graph_visualizer_node.cpp)
+
+add_library( transform_utils src/transform_utils)
+target_link_libraries( depth_graph_visualizer_node transform_utils memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)
 
