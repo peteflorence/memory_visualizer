@@ -12,6 +12,7 @@ typedef Eigen::Matrix<Scalar, 3, 3> Matrix3;
 #include "geometry_msgs/TwistStamped.h"
 #include "geometry_msgs/Point.h"
 
+
 void BuildSideOfFOV(Vector3 body, Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker, int fov_id) {
 
 		geometry_msgs::Point p;
@@ -81,6 +82,62 @@ void BuildLineOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Mark
   }
 	marker.colors.push_back(c);
 	marker.colors.push_back(c);      	    	
+}
+
+std::vector<visualization_msgs::Marker> BuildFovMarker(int fov_id, Vector3 body, Vector3 corner_1, Vector3 corner_2, Vector3 corner_3, Vector3 corner_4) {
+    std::string drawing_frame = "world";
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = drawing_frame;
+    marker.header.stamp = ros::Time::now();
+    marker.ns = "fov_side";
+    marker.id = fov_id;
+    marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.pose.position.x = 0;
+    marker.pose.position.y = 0;
+    marker.pose.position.z = 0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
+    marker.scale.x = 1.0;
+    marker.scale.y = 1.0;
+    marker.scale.z = 1.0;
+    marker.color.r = 1.0;
+    marker.color.g = 1.0;
+    marker.color.b = 1.0;
+    marker.color.a = 1.0;
+
+    std::vector<Vector3> fov_corners;
+    fov_corners.push_back(corner_1); // bottom right
+    fov_corners.push_back(corner_2); // top right
+    fov_corners.push_back(corner_3); // top left
+    fov_corners.push_back(corner_4); // bottom left    
+
+    int j = 0;
+    for (int i = 0; i < 4; i++) {
+      j = i+1;
+      if (j == 4) {j = 0;}; // connect back around
+      BuildSideOfFOV(body, fov_corners.at(i), fov_corners.at(j), marker, fov_id);
+    }
+    std::vector<visualization_msgs::Marker> markers;
+    markers.push_back(marker);
+
+    marker.type = visualization_msgs::Marker::LINE_LIST;
+    marker.ns = "fov_line";
+    marker.scale.x = 0.1;
+    marker.scale.y = 0.1;
+    marker.scale.z = 0.1;
+    marker.points.clear();
+    marker.colors.clear();
+    for (int i = 0; i < 4; i++) {
+      j = i+1;
+      if (j == 4) {j = 0;}; // connect back around
+      BuildLineOfFOV(body, fov_corners.at(i), marker, fov_id); // don't need to rotate 0,0,0
+      BuildLineOfFOV(fov_corners.at(i), fov_corners.at(j), marker, fov_id);
+    }
+    markers.push_back(marker);
+    return markers;
 }
 
 #endif
