@@ -47,13 +47,6 @@ private:
       last_pose = pose;
       Eigen::Matrix4d transform_identity = Eigen::Matrix4d::Identity();
       transform_identity(0,3) = -1.0;
-
-      double theta = 3.0 * M_PI/180.0; // The angle of rotation in radians
-      transform_identity (0,0) = cos (theta);
-      transform_identity (0,1) = -sin(theta);
-      transform_identity (1,0) = sin (theta);
-      transform_identity (1,1) = cos (theta);
-
       std::cout << transform_identity << std::endl;
       for (int i = 0; i < 200; i++) {
         odometries.push_back(transform_identity);
@@ -68,13 +61,7 @@ private:
       counter = 0;
       ROS_INFO("GOT POSE");
 
-      Matrix3 last_R = constructR(last_pose);
-      Vector3 last_t = constructt(last_pose);
-
-      Matrix3 R = constructR(pose);
-      Vector3 t = constructt(pose);
-
-      AddToOdometries(findTransform(R, t, last_R, last_t));
+      AddToOdometries(findTransform(pose, last_pose));
 
       last_pose = pose;
       PublishPositionMarkers();
@@ -91,16 +78,26 @@ private:
     return Vector3(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
   }
 
-  Eigen::Matrix4d findTransform(Matrix3 R_1, Vector3 t_1, Matrix3 R_2, Vector3 t_2) {
-    Eigen::Matrix4d transform_1 = Eigen::Matrix4d::Identity();
-    transform_1.block<3,3>(0,0) = R_1.transpose();
-    transform_1.block<3,1>(0,3) = -1.0 * R_1.transpose() * t_1; // T_1^W inverse
+  Eigen::Matrix4d findTransform(geometry_msgs::PoseStamped const& new_pose, geometry_msgs::PoseStamped const& previous_pose) {
+    return findTransform(previous_pose)*invertTransform(findTransform(new_pose));
+  }
 
-    Eigen::Matrix4d transform_2 = Eigen::Matrix4d::Identity();
-    transform_2.block<3,3>(0,0) = R_2;
-    transform_2.block<3,1>(0,3) = t_2; // T_2^W
+  Eigen::Matrix4d findTransform(geometry_msgs::PoseStamped const& pose) {
+    Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
+    Matrix3 R = constructR(pose);
+    Vector3 t = constructt(pose);
+    transform.block<3,3>(0,0) = R;
+    transform.block<3,1>(0,3) = t;
+    return transform;
+  }
 
-    return transform_2*transform_1;
+  Eigen::Matrix4d invertTransform(Eigen::Matrix4d transform) {
+    Matrix3 R = transform.block<3,3>(0,0);
+    Vector3 t = transform.block<3,1>(0,3);
+    Eigen::Matrix4d inverted_transform = Eigen::Matrix4d::Identity();
+    inverted_transform.block<3,3>(0,0) = R.transpose();
+    inverted_transform.block<3,1>(0,3) = -1.0 * R.transpose() * t;
+    return inverted_transform;
   }
 
   void AddToOdometries(Eigen::Matrix4d current_transform) {
