@@ -37,19 +37,18 @@ private:
 
   bool initiated = false;
 	int counter = 0; // this just reduces to 33 Hz from 100 Hz
-  Matrix3 last_R;
-  Vector3 last_t;
   std::vector<Eigen::Matrix4d> odometries;
+
+  geometry_msgs::PoseStamped last_pose;
 
   void OnPose( geometry_msgs::PoseStamped const& pose ) {
     if (!initiated) {
-      last_R = constructR(pose);
-      last_t = constructt(pose);
-      initiated = true;
+      last_pose = pose;
       Eigen::Matrix4d transform_identity = Eigen::Matrix4d::Identity();
       for (int i = 0; i < 20; i++) {
         odometries.push_back(transform_identity);
       }
+      initiated = true;
       return;
     }
     
@@ -57,11 +56,20 @@ private:
     if (counter >= 25) {
       counter = 0;
       ROS_INFO("GOT POSE");
-      Matrix3 R = constructR(pose);
-      Vector3 t = constructt(pose);
+
+      // last_pose into new rdf frame
+      geometry_msgs::PoseStamped last_pose_new_rdf = TransfromWorldPoseToRDFPose(pose);
+
+      Matrix3 last_R = constructR(last_pose_new_rdf);
+      Vector3 last_t = constructt(last_pose_new_rdf);
+
+      Matrix3 R = Eigen::Matrix3d::Identity();
+      Vector3 t = Vector3(0,0,0);
+
       AddToOdometries(findTransform(R, t, last_R, last_t));
       last_R = R;
       last_t = t;
+      last_pose = pose;
       PublishFovMarkers();
     }
   }
@@ -242,6 +250,21 @@ private:
     return answer;
   }
 
+  geometry_msgs::PoseStamped TransfromWorldPoseToRDFPose(geometry_msgs::PoseStamped pose_world_frame) {
+      geometry_msgs::TransformStamped tf;
+      try {
+        tf = tf_buffer_.lookupTransform("r200_depth_optical_frame", "world",
+                                      ros::Time(0), ros::Duration(1/30.0));
+      } catch (tf2::TransformException &ex) {
+        ROS_ERROR("ID 7 %s", ex.what());
+        return PoseFromVector3(Vector3(0,0,0), "r200_depth_optical_frame");
+      }
+      geometry_msgs::PoseStamped pose_rdf_frame = PoseFromVector3(Vector3(0,0,0), "r200_depth_optical_frame");
+      tf2::doTransform(pose_world_frame, pose_rdf_frame, tf);
+      return pose_rdf_frame;
+  }
+
+
 	Vector3 TransformRDFtoWorld(Vector3 const& ortho_body_frame) {
 		geometry_msgs::TransformStamped tf;
 	    try {
@@ -298,40 +321,40 @@ private:
 
   }
 
-  void PrintToyTransform() {
-    Vector3 p1, p2;
-    p1 << 1,1,1;
-    std::cout << "p1 " << p1 << std::endl;
-    Eigen::Affine3d transform_2 = Eigen::Affine3d::Identity();
-    transform_2.translation() << last_t;
-    transform_2.rotate (last_R);
+  // void PrintToyTransform() {
+  //   Vector3 p1, p2;
+  //   p1 << 1,1,1;
+  //   std::cout << "p1 " << p1 << std::endl;
+  //   Eigen::Affine3d transform_2 = Eigen::Affine3d::Identity();
+  //   transform_2.translation() << last_t;
+  //   transform_2.rotate (last_R);
 
-    // Print the transformation
-    printf ("\nMethod #2: using an Affine3f\n");
-    std::cout << transform_2.matrix() << std::endl;
-    p2 = transform_2 * p1;
-    std::cout << "p2 " << p2 << std::endl;
-    p2 = transform_2 * p2;
-    std::cout << "p2 " << p2 << std::endl;
-    p2 = transform_2 * p2;
-    std::cout << "p2 " << p2 << std::endl;
+  //   // Print the transformation
+  //   printf ("\nMethod #2: using an Affine3f\n");
+  //   std::cout << transform_2.matrix() << std::endl;
+  //   p2 = transform_2 * p1;
+  //   std::cout << "p2 " << p2 << std::endl;
+  //   p2 = transform_2 * p2;
+  //   std::cout << "p2 " << p2 << std::endl;
+  //   p2 = transform_2 * p2;
+  //   std::cout << "p2 " << p2 << std::endl;
 
-     printf ("\nMethod #2: using a Matrix4f\n");
-    Eigen::Matrix4d transform_3 = Eigen::Matrix4d::Identity();
-    transform_3.block<3,3>(0,0) = last_R;
-    transform_3.block<3,1>(0,3) = last_t;
+  //    printf ("\nMethod #2: using a Matrix4f\n");
+  //   Eigen::Matrix4d transform_3 = Eigen::Matrix4d::Identity();
+  //   transform_3.block<3,3>(0,0) = last_R;
+  //   transform_3.block<3,1>(0,3) = last_t;
 
-    Eigen::Vector4d p1_h, p2_h;
-    p1_h << p1(0), p1(1), p1(2), 1.0;
-    std::cout << transform_3 << std::endl;
-    p2_h = transform_3 * p1_h;
-    std::cout << "p2_h " << p2_h << std::endl;
-    p2_h = transform_2 * p2_h;
-    std::cout << "p2_h " << p2_h << std::endl;
-    p2_h = transform_2 * p2_h;
-    std::cout << "p2_h " << p2_h << std::endl;
+  //   Eigen::Vector4d p1_h, p2_h;
+  //   p1_h << p1(0), p1(1), p1(2), 1.0;
+  //   std::cout << transform_3 << std::endl;
+  //   p2_h = transform_3 * p1_h;
+  //   std::cout << "p2_h " << p2_h << std::endl;
+  //   p2_h = transform_2 * p2_h;
+  //   std::cout << "p2_h " << p2_h << std::endl;
+  //   p2_h = transform_2 * p2_h;
+  //   std::cout << "p2_h " << p2_h << std::endl;
 
-  }
+  // }
 
 
 	std::string drawing_frame = "r200_depth_optical_frame";
