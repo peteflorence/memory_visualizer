@@ -60,8 +60,9 @@ private:
       ROS_INFO("GOT POSE");
 
       AddToOdometries(findTransform(pose, last_pose));
-
+      transform_body_to_world = findTransform(pose);
       last_pose = pose;
+      
       PublishPositionMarkers();
       PublishFovMarker(0);
       PublishFovMarkerSimple(0);
@@ -72,12 +73,6 @@ private:
     std::cout << "rotate and add" << std::endl;
     rotate(odometries.begin(),odometries.end()-1,odometries.end()); // Shift vector so each move back 1
     odometries.at(0) = current_transform;
-  }
-
-  void PublishFovMarkers() {
-    for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
-      PublishFovMarker(fov_id);
-    }
   }
 
   void PublishPositionMarkers()  {
@@ -123,6 +118,12 @@ private:
     return Vector3(previous_position(0), previous_position(1), previous_position(2));
   }
 
+  void PublishFovMarkers() {
+    for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
+      PublishFovMarker(fov_id);
+    }
+  }
+
   void PublishFovMarkerSimple(int fov_id) {
     visualization_msgs::Marker marker;
     marker.header.frame_id = drawing_frame;
@@ -162,14 +163,7 @@ private:
 	  marker.id = fov_id;
   	marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
   	marker.action = visualization_msgs::Marker::ADD;
-    // start in current rdf frame
-    Vector3 p = Vector3(0.0,0.0,0.0);
-    // rotate to current body frame
-    p = BodyToRDF.inverse() * p;
-    // put into world
-    transform_body_to_world = findTransform(last_pose);
-    p = applyTransform(p, transform_body_to_world);
-
+    
   	marker.pose.position.x = 0;
   	marker.pose.position.y = 0;
 		marker.pose.position.z = 0;
