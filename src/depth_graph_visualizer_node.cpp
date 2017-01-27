@@ -91,13 +91,17 @@ private:
     marker.type = visualization_msgs::Marker::SPHERE;
     marker.action = visualization_msgs::Marker::ADD;
 
-    // current position --> previous position
-    Vector3 current_position = VectorFromPose(last_pose);
-    Vector3 previous_position = transformFromCurrentPoseThroughChain(current_position, fov_id); 
+    // this worked
+    // Vector3 current_position_world_frame = VectorFromPose(last_pose);
+    // Vector3 position_world_frame = transformFromCurrentPoseThroughChain(current_position_world_frame, fov_id); 
 
-    marker.pose.position.x = previous_position(0);
-    marker.pose.position.y = previous_position(1);
-    marker.pose.position.z = previous_position(2);
+    Vector3 position_previous_body_frame(0,0,0);
+    Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(fov_id);
+    Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform);
+
+    marker.pose.position.x = position_world_frame(0);
+    marker.pose.position.y = position_world_frame(1);
+    marker.pose.position.z = position_world_frame(2);
     marker.scale.x = 0.8;
     marker.scale.y = 0.8;
     marker.scale.z = 0.8;
@@ -149,6 +153,14 @@ private:
       current_position = applyTransform(current_position, odometries.at(i));
     }
     return current_position;
+  }
+
+  Eigen::Matrix4d transformFromPreviousBodyToWorld(int fov_id) {
+    Eigen::Matrix4d transform = transform_body_to_world;
+    for (int i = 0; i < fov_id; i++) {
+      transform = odometries.at(i) * transform;
+    }
+    return transform;
   }
 
   void PublishFovMarkers() {
