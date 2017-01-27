@@ -65,7 +65,7 @@ private:
       last_pose = pose;
 
       PublishPositionMarkers();
-      PublishFovMarkerSimple(3);
+      PublishFovMarkersSimple();
       //PublishFovMarkers();
     }
   }
@@ -112,6 +112,12 @@ private:
     fov_pub.publish( marker );
   } 
 
+  void PublishFovMarkersSimple()  {
+    for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
+      PublishFovMarkerSimple(fov_id);
+    }
+  }
+
   void PublishFovMarkerSimple(int fov_id) {   
     visualization_msgs::Marker marker;    
     marker.header.frame_id = drawing_frame;   
@@ -120,24 +126,24 @@ private:
     marker.id = fov_id+100;   
     marker.type = visualization_msgs::Marker::SPHERE;   
     marker.action = visualization_msgs::Marker::ADD;    
-         
-    // // start in current rdf frame    
-    Vector3 p = Vector3(0.0,0.0,1.0);   
-    // // rotate to current body frame    
-    p = BodyToRDF_inverse * p;    
-    // put into world   
+       
+    // this worked  
+    // // // start in current rdf frame    
+    // Vector3 p = Vector3(0.0,0.0,1.0);   
+    // // // rotate to current body frame    
+    // p = BodyToRDF_inverse * p;    
+    // // put into world   
 
-    for (int i = fov_id-1; i>=0; i--) {
-      std::cout << "i " << i << std::endl;
-      p = applyTransform(p, Eigen::Matrix4d::Identity());
-    }
+    // transform_body_to_world = findTransform(last_pose);   
+    // p = applyTransform(p, transform_body_to_world);   
 
-    transform_body_to_world = findTransform(last_pose);   
-    p = applyTransform(p, transform_body_to_world);   
+    Vector3 position_previous_body_frame(0,1,0);
+    Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(fov_id);
+    Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform);
      
-    marker.pose.position.x = p(0);    
-    marker.pose.position.y = p(1);    
-    marker.pose.position.z = p(2);    
+    marker.pose.position.x = position_world_frame(0);    
+    marker.pose.position.y = position_world_frame(1);    
+    marker.pose.position.z = position_world_frame(2);    
     marker.scale.x = 0.8;   
     marker.scale.y = 0.8;   
     marker.scale.z = 0.8;   
