@@ -64,9 +64,7 @@ private:
       transform_body_to_world = findTransform(pose);
       last_pose = pose;
 
-      PublishPositionMarkers();
       PublishFovMarkers();
-      //PublishFovMarkers();
     }
   }
 
@@ -76,24 +74,14 @@ private:
     odometries.at(0) = current_transform;
   }
 
-  void PublishPositionMarkers()  {
-    for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
-      PublishPositionMarker(fov_id);
-    }
-  }
-
-  void PublishPositionMarker(int fov_id) {
+  void PublishPositionMarker(Vector3 position_world_frame) {
     visualization_msgs::Marker marker;
     marker.header.frame_id = drawing_frame;
     marker.header.stamp = ros::Time::now();
     marker.ns = "fov_center";
-    marker.id = fov_id;
+    marker.id = 0;
     marker.type = visualization_msgs::Marker::SPHERE;
     marker.action = visualization_msgs::Marker::ADD;
-
-    Vector3 position_previous_body_frame(0,0,0);
-    Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(fov_id);
-    Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform);
 
     marker.pose.position.x = position_world_frame(0);
     marker.pose.position.y = position_world_frame(1);
@@ -118,6 +106,8 @@ private:
 
   void PublishFovMarkers() {
     for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
+      // FIND CORNERS
+
       // start in that poses' rdf, and rotate to body
       Vector3 bottom_right = BodyToRDF_inverse * Vector3(7,5.25,10);
       Vector3 top_right = BodyToRDF_inverse * Vector3(7,-5.25,10);
@@ -126,16 +116,21 @@ private:
       Vector3 body = Vector3(0,0,0);
 
       Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(fov_id);
-
       body = applyTransform(body, transform); // don't need to rotate 0,0,0
       Vector3 corner_1 = applyTransform(bottom_right, transform);
       Vector3 corner_2 = applyTransform(top_right, transform);
       Vector3 corner_3 = applyTransform(top_left, transform);
       Vector3 corner_4 = applyTransform(bottom_left, transform);
+
+
+      // DETERMINE IF -1 in current body frame is in front of previous pose
+
+      Vector3 position_current_body_frame(-1.0,0.0,0.0);
+      PublishPositionMarker(position_current_body_frame);
+
       PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4);
    }
  }
-
 
 	void PublishFovMarker(int fov_id, Vector3 body, Vector3 corner_1, Vector3 corner_2, Vector3 corner_3, Vector3 corner_4) {
 		std::vector<visualization_msgs::Marker> markers = BuildFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4);
