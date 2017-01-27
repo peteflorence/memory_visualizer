@@ -45,7 +45,16 @@ private:
     if (!initiated) {
       last_pose = pose;
       Eigen::Matrix4d transform_identity = Eigen::Matrix4d::Identity();
-      for (int i = 0; i < 20; i++) {
+      transform_identity(0,3) = -1.0;
+
+      double theta = 3.0 * M_PI/180.0; // The angle of rotation in radians
+      transform_identity (0,0) = cos (theta);
+      transform_identity (0,1) = -sin(theta);
+      transform_identity (1,0) = sin (theta);
+      transform_identity (1,1) = cos (theta);
+
+      std::cout << transform_identity << std::endl;
+      for (int i = 0; i < 50; i++) {
         odometries.push_back(transform_identity);
       }
       initiated = true;
@@ -57,20 +66,17 @@ private:
       counter = 0;
       ROS_INFO("GOT POSE");
 
-      // last_pose into new rdf frame
-      geometry_msgs::PoseStamped last_pose_new_rdf = TransfromWorldPoseToRDFPose(pose);
+      Matrix3 last_R = constructR(last_pose);
+      Vector3 last_t = constructt(last_pose);
 
-      Matrix3 last_R = constructR(last_pose_new_rdf);
-      Vector3 last_t = constructt(last_pose_new_rdf);
-
-      Matrix3 R = Eigen::Matrix3d::Identity();
-      Vector3 t = Vector3(0,0,0);
+      Matrix3 R = constructR(pose);
+      Vector3 t = constructt(pose);
 
       AddToOdometries(findTransform(R, t, last_R, last_t));
-      last_R = R;
-      last_t = t;
+
       last_pose = pose;
-      PublishFovMarkers();
+      PublishPositionMarkers();
+      //PublishFovMarkers();
     }
   }
 
@@ -85,14 +91,16 @@ private:
 
   Eigen::Matrix4d findTransform(Matrix3 R_1, Vector3 t_1, Matrix3 R_2, Vector3 t_2) {
     Eigen::Matrix4d transform_1 = Eigen::Matrix4d::Identity();
+    std::cout << R_1 << std::endl;
     transform_1.block<3,3>(0,0) = R_1.transpose();
     transform_1.block<3,1>(0,3) = -1.0 * R_1.transpose() * t_1; // T_1^W inverse
+    std::cout << transform_1 << std::endl;
 
     Eigen::Matrix4d transform_2 = Eigen::Matrix4d::Identity();
     transform_2.block<3,3>(0,0) = R_2;
     transform_2.block<3,1>(0,3) = t_2; // T_2^W
 
-    return transform_1*transform_2;
+    return transform_2*transform_1;
   }
 
   void AddToOdometries(Eigen::Matrix4d current_transform) {
@@ -105,6 +113,49 @@ private:
     for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
       PublishFovMarker(fov_id);
     }
+  }
+
+  void PublishPositionMarkers()  {
+    for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
+      PublishPositionMarker(fov_id);
+    }
+  }
+
+  void PublishPositionMarker(int fov_id) {
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = drawing_frame;
+    marker.header.stamp = ros::Time::now();
+    marker.ns = "fov_center";
+    marker.id = fov_id;
+    marker.type = visualization_msgs::Marker::SPHERE;
+    marker.action = visualization_msgs::Marker::ADD;
+
+    // current position --> previous position
+    Vector3 current_position = VectorFromPose(last_pose);
+    Vector3 previous_position = transformFromCurrentPoseThroughChain(current_position, fov_id); 
+
+    marker.pose.position.x = previous_position(0);
+    marker.pose.position.y = previous_position(1);
+    marker.pose.position.z = previous_position(2);
+    marker.scale.x = 0.8;
+    marker.scale.y = 0.8;
+    marker.scale.z = 0.8;
+    marker.color.a = 0.40; // Don't forget to set the alpha!
+    marker.color.r = 0.0;
+    marker.color.g = 0.0;
+    marker.color.b = 1.0;
+    fov_pub.publish( marker );
+  } 
+
+  Vector3 transformFromCurrentPoseThroughChain(Vector3 current_position, int fov_id) {
+    Vector4 previous_position;
+    previous_position << current_position(0), current_position(1), current_position(2), 1.0;
+
+    for (int i = 0; i < fov_id; i++) {
+      previous_position = odometries.at(i) * previous_position;
+    }
+
+    return Vector3(previous_position(0), previous_position(1), previous_position(2));
   }
 
 	void PublishFovMarker(int fov_id) {
@@ -357,7 +408,7 @@ private:
   // }
 
 
-	std::string drawing_frame = "r200_depth_optical_frame";
+	std::string drawing_frame = "world";
 
 	ros::Subscriber pose_sub;
 
