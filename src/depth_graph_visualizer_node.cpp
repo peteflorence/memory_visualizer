@@ -1,4 +1,5 @@
 #include "transform_utils.h"
+#include "fov_visualizer.h"
 #include <ros/ros.h>
 #include <nav_msgs/Path.h>
 #include <visualization_msgs/Marker.h>
@@ -62,10 +63,9 @@ private:
       AddToOdometries(findTransform(pose, last_pose));
       transform_body_to_world = findTransform(pose);
       last_pose = pose;
-      
+
       PublishPositionMarkers();
       PublishFovMarker(0);
-      PublishFovMarkerSimple(0);
     }
   }
 
@@ -124,37 +124,6 @@ private:
     }
   }
 
-  void PublishFovMarkerSimple(int fov_id) {
-    visualization_msgs::Marker marker;
-    marker.header.frame_id = drawing_frame;
-    marker.header.stamp = ros::Time::now();
-    marker.ns = "fov_simple";
-    marker.id = fov_id+100;
-    marker.type = visualization_msgs::Marker::SPHERE;
-    marker.action = visualization_msgs::Marker::ADD;
-    
-    // // start in current rdf frame
-    Vector3 p = Vector3(0.0,0.0,1.0);
-    // // rotate to current body frame
-    p = BodyToRDF_inverse * p;
-    // put into world
-    transform_body_to_world = findTransform(last_pose);
-    p = applyTransform(p, transform_body_to_world);
-
-    marker.pose.position.x = p(0);
-    marker.pose.position.y = p(1);
-    marker.pose.position.z = p(2);
-    marker.scale.x = 0.8;
-    marker.scale.y = 0.8;
-    marker.scale.z = 0.8;
-    marker.color.a = 0.40; // Don't forget to set the alpha!
-    marker.color.r = 1.0;
-    marker.color.g = 1.0;
-    marker.color.b = 0.0;
-    fov_pub.publish( marker );
-
-  }
-
 	void PublishFovMarker(int fov_id) {
 		visualization_msgs::Marker marker;
     marker.header.frame_id = drawing_frame;
@@ -184,6 +153,7 @@ private:
     Vector3 top_right = BodyToRDF_inverse * Vector3(7,-5.25,10);
     Vector3 top_left = BodyToRDF_inverse * Vector3(-7,-5.25,10);
     Vector3 bottom_left = BodyToRDF_inverse * Vector3(-7,5.25,10);
+    Vector3 body = applyTransform(Vector3(0,0,0), transform_body_to_world); // don't need to rotate 0,0,0
 
    	fov_corners.push_back(applyTransform(bottom_right, transform_body_to_world)); // bottom right
     fov_corners.push_back(applyTransform(top_right, transform_body_to_world)); // top right
@@ -194,7 +164,7 @@ private:
    	for (int i = 0; i < 4; i++) {
    		j = i+1;
    		if (j == 4) {j = 0;}; // connect back around
-   		BuildSideOfFOV(fov_corners.at(i), fov_corners.at(j), marker, fov_id);
+   		BuildSideOfFOV(body, fov_corners.at(i), fov_corners.at(j), marker, fov_id);
    	}
    	fov_pub.publish( marker );
 
@@ -208,83 +178,11 @@ private:
    	for (int i = 0; i < 4; i++) {
    		j = i+1;
    		if (j == 4) {j = 0;}; // connect back around
-   		BuildLineOfFOV(applyTransform(Vector3(0,0,0), transform_body_to_world), fov_corners.at(i), marker, fov_id); // don't need to rotate 0,0,0
+   		BuildLineOfFOV(body, fov_corners.at(i), marker, fov_id); // don't need to rotate 0,0,0
    		BuildLineOfFOV(fov_corners.at(i), fov_corners.at(j), marker, fov_id);
    	}
    	fov_pub.publish( marker );
   
-	}
-
-	void BuildSideOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker, int fov_id) {
-		Vector3 corner_0 = applyTransform(Vector3(0,0,0), transform_body_to_world); // don't need to rotate 0,0,0
-
-		geometry_msgs::Point p;
-		p.x = corner_0(0);
-		p.y = corner_0(1);
-  		p.z = corner_0(2);
-
-   		geometry_msgs::Point p2 = p;
-   		p2.x = corner_1(0);
-   		p2.y = corner_1(1);
-   		p2.z = corner_1(2);
-
-   		geometry_msgs::Point p3 = p;
-   		p3.x = corner_2(0);
-   		p3.y = corner_2(1);
-   		p3.z = corner_2(2);
-
-   		marker.points.push_back(p);
-   		marker.points.push_back(p2);
-   		marker.points.push_back(p3);
-
-      std_msgs::ColorRGBA c;
-      if (fov_id == 0) {
-        c.r = 1.0;
-        c.g = 1.0;
-        c.b = 0.0;
-        c.a = 0.15;
-      }
-      else {
-        c.r = 0.1;
-        c.g = 0.1;
-        c.b = 0.1;
-        c.a = 0.05;  
-      }
-   		marker.colors.push_back(c);
-   		marker.colors.push_back(c);
-  		marker.colors.push_back(c);       	    	
-	}
-
-	void BuildLineOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker, int fov_id) {
-
-		geometry_msgs::Point p;
-		p.x = corner_1(0);
-   		p.y = corner_1(1);
-   		p.z = corner_1(2);
-
-   		geometry_msgs::Point p2 = p;
-   		p2.x = corner_2(0);
-   		p2.y = corner_2(1);
-   		p2.z = corner_2(2);
-
-   		marker.points.push_back(p);
-   		marker.points.push_back(p2);
-
-   		std_msgs::ColorRGBA c;
-      if (fov_id == 0) {
-        c.r = 1.0;
-        c.g = 1.0;
-        c.b = 0.0;
-        c.a = 0.50;
-      }
-      else {
-        c.r = 0.1;
-        c.g = 0.1;
-        c.b = 0.1;
-        c.a = 0.50;  
-      }
-   		marker.colors.push_back(c);
-   		marker.colors.push_back(c);      	    	
 	}
 
   Vector3 transformToCurrentRDFframe(Vector3 position_other_rdf_frame, int fov_id) {
