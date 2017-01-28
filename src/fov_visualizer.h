@@ -12,6 +12,52 @@ typedef Eigen::Matrix<Scalar, 3, 3> Matrix3;
 #include "geometry_msgs/TwistStamped.h"
 #include "geometry_msgs/Point.h"
 
+std_msgs::ColorRGBA GetColorForFOV(int fov_id) {
+  std_msgs::ColorRGBA c;
+  if (fov_id == 0 ) {
+    //purple
+    c.r = 0.9;
+    c.g = 0.1;
+    c.b = 0.9;
+    c.a = 0.15;
+  }
+  else if (fov_id == 10 ) {
+    //orange
+    c.r = 1.0;
+    c.g = 165.0/255.0;
+    c.b = 0.1;
+    c.a = 0.15;
+  }
+  else if (fov_id == 20 ) {
+    //blue
+    c.r = 0.1;
+    c.g = 0.1;
+    c.b = 1.0;
+    c.a = 0.15;
+  }
+  else if (fov_id == 30) {
+    //red
+    c.r = 1.0;
+    c.g = 0.1;
+    c.b = 0.1;
+    c.a = 0.15;
+  }
+  else if (fov_id == 40) {
+    //red
+    c.r = 0.1;
+    c.g = 1.0;
+    c.b = 0.1;
+    c.a = 0.15;
+  }
+  else {
+    c.r = 0.0;
+    c.g = 0.0;
+    c.b = 0.0;
+    c.a = 0.0;
+  }
+  return c;
+}
+
 
 void BuildSideOfFOV(Vector3 body, Vector3 corner_1, Vector3 corner_2, visualization_msgs::Marker& marker, int fov_id, bool color_in_fov) {
 
@@ -34,19 +80,8 @@ void BuildSideOfFOV(Vector3 body, Vector3 corner_1, Vector3 corner_2, visualizat
    		marker.points.push_back(p2);
    		marker.points.push_back(p3);
 
-      std_msgs::ColorRGBA c;
-      if (color_in_fov) {
-        c.r = 1.0;
-        c.g = 1.0;
-        c.b = 0.0;
-        c.a = 0.15;
-      }
-      else {
-        c.r = 0.1;
-        c.g = 0.1;
-        c.b = 0.1;
-        c.a = 0.05;  
-      }
+      std_msgs::ColorRGBA c = GetColorForFOV(fov_id); 
+
    		marker.colors.push_back(c);
    		marker.colors.push_back(c);
   		marker.colors.push_back(c);       	    	
@@ -67,19 +102,8 @@ void BuildLineOfFOV(Vector3 corner_1, Vector3 corner_2, visualization_msgs::Mark
 	marker.points.push_back(p);
 	marker.points.push_back(p2);
 
-	std_msgs::ColorRGBA c;
-  if (color_in_fov) {
-    c.r = 1.0;
-    c.g = 1.0;
-    c.b = 0.0;
-    c.a = 0.50;
-  }
-  else {
-    c.r = 0.1;
-    c.g = 0.1;
-    c.b = 0.1;
-    c.a = 0.50;  
-  }
+	std_msgs::ColorRGBA c = GetColorForFOV(fov_id);
+  c.a = 0.50;  
 	marker.colors.push_back(c);
 	marker.colors.push_back(c);      	    	
 }

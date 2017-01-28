@@ -68,7 +68,6 @@ private:
       last_pose = pose;
 
       PublishFovMarkers();
-      //DeBug();
     }
   }
 
@@ -78,36 +77,28 @@ private:
     odometries.at(0) = current_transform;
   }
 
-  void DeBug() {
-    int fov_id_debug = 10;
-    Vector3 current_body(0,0,1);
-    Eigen::Matrix4d transform_current_body_to_previous_body = transformFromCurrentBodyToPreviousBody(fov_id_debug);
 
-    Vector3 previous_body_frame_position = applyTransform(current_body, transform_current_body_to_previous_body);
-    Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(fov_id_debug);
-    Vector3 new_world_position = applyTransform(previous_body_frame_position, transform_to_world);
-    PublishPositionMarker(new_world_position);
-  }
-
-  void PublishPositionMarker(Vector3 position_world_frame) {
+  void PublishPositionMarker(Vector3 position_world_frame, int fov_id) {
     visualization_msgs::Marker marker;
     marker.header.frame_id = drawing_frame;
     marker.header.stamp = ros::Time::now();
     marker.ns = "fov_center";
-    marker.id = 0;
+    marker.id = fov_id;
     marker.type = visualization_msgs::Marker::SPHERE;
     marker.action = visualization_msgs::Marker::ADD;
 
     marker.pose.position.x = position_world_frame(0);
     marker.pose.position.y = position_world_frame(1);
     marker.pose.position.z = position_world_frame(2);
-    marker.scale.x = 0.8;
-    marker.scale.y = 0.8;
-    marker.scale.z = 0.8;
+    marker.scale.x = 0.8 + fov_id*0.1;
+    marker.scale.y = 0.8 + fov_id*0.1;
+    marker.scale.z = 0.2 + fov_id*0.1/4.0;
     marker.color.a = 0.40; // Don't forget to set the alpha!
-    marker.color.r = 0.0;
-    marker.color.g = 0.0;
-    marker.color.b = 1.0;
+
+    std_msgs::ColorRGBA c = GetColorForFOV(fov_id);
+    marker.color.r = c.r;
+    marker.color.g = c.g;
+    marker.color.b = c.b;
     fov_pub.publish( marker );
   } 
 
@@ -120,15 +111,20 @@ private:
     return transform;
   }
 
-  // this function under construction
   Eigen::Matrix4d transformFromCurrentBodyToPreviousBody(int fov_id) {
     Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(fov_id));
     return transform_world_to_previous_body_frame * transform_body_to_world;
   }
 
+  // Eigen::Matrix4d transformFromCurrentBodyToPreviousBodyWithNoise(int fov_id) {
+  //   Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(fov_id));
+  //   return transform_world_to_previous_body_frame * transform_body_to_world;
+  // }
+
+
   void PublishFovMarkers() {
     bool color_in_fov = false;
-    for (int fov_id = 0; fov_id < odometries.size(); fov_id++) {
+    for (int fov_id = 0; fov_id < 41; fov_id = fov_id + 10) {
       // FIND CORNERS
 
       // start in that poses' rdf, and rotate to body
@@ -158,12 +154,11 @@ private:
         color_in_fov = false;
       }
       PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4, color_in_fov);
+
+      Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(0);
+      Vector3 position_world_frame = applyTransform(position_current_body_frame, transform_to_world);
+      PublishPositionMarker(position_world_frame, fov_id);
    }
-  
-   Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(0);
-   Vector3 position_current_body_frame(0.0,3.0,0.0);
-   Vector3 position_world_frame = applyTransform(position_current_body_frame, transform);
-   PublishPositionMarker(position_world_frame);
  }
 
 	void PublishFovMarker(int fov_id, Vector3 body, Vector3 corner_1, Vector3 corner_2, Vector3 corner_3, Vector3 corner_4, bool color_in_fov) {
