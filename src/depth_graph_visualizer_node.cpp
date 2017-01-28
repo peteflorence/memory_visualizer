@@ -144,7 +144,7 @@ private:
 
 
       // DETERMINE IF -1 in current body frame is in front of previous pose
-      Vector3 position_current_body_frame(-3.0,0.0,0.0);
+      Vector3 position_current_body_frame(0.0,3.0,0.0);
       Eigen::Matrix4d transform_current_body_to_previous_body = transformFromCurrentBodyToPreviousBody(fov_id);
       Vector3 position_previous_body_frame = applyTransform(position_current_body_frame, transform_current_body_to_previous_body);
       if (position_previous_body_frame(0) > 0.0) {
@@ -157,7 +157,7 @@ private:
    }
   
    Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(0);
-   Vector3 position_current_body_frame(-3.0,0.0,0.0);
+   Vector3 position_current_body_frame(0.0,3.0,0.0);
    Vector3 position_world_frame = applyTransform(position_current_body_frame, transform);
    PublishPositionMarker(position_world_frame);
  }
