@@ -28,6 +28,8 @@ public:
   	    // Publishers
 		fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
 		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(tf_buffer_);
+
+    srand(time(NULL)); // initialize random seed
 	}
 
 private:
@@ -41,6 +43,7 @@ private:
   Matrix3 BodyToRDF;
   Matrix3 BodyToRDF_inverse;
   Eigen::Matrix4d transform_body_to_world; // better if not class variable
+
 
   FovEvaluator fov_evaluator;
 
@@ -79,11 +82,19 @@ private:
     odometries.at(0) = current_transform;
 
     Eigen::Matrix4d noise = Eigen::Matrix4d::Zero();
-    noise(0,3) = 0.2;
-    noise(1,3) = 0.3;
-    noise(2,3) = 0.1;
+    noise(0,3) = randomNoise(0.0, 0.3);
+    noise(1,3) = randomNoise(0.0, 0.3);
+    noise(2,3) = randomNoise(0.0, 0.1);
     rotate(odometries_with_noise.begin(),odometries_with_noise.end()-1,odometries_with_noise.end());
     odometries_with_noise.at(0) = current_transform + noise;
+  }
+
+  double randomNoise(double mean, double sigma) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+
+    std::normal_distribution<> d(mean, sigma);
+    return d(gen);
   }
 
 
@@ -173,7 +184,7 @@ private:
       }
       PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4, color_in_fov);
 
-      Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(fov_id);
+      Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorldWithNoise(fov_id);
       Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform_to_world);
       PublishPositionMarker(position_world_frame, fov_id);
    }
