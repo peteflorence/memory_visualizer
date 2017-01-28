@@ -37,7 +37,7 @@ private:
   bool initiated = false;
 	int counter = 0; // this just reduces to 33 Hz from 100 Hz
   std::vector<Eigen::Matrix4d> odometries;
-  std::vector<Eigen::Matrix4d> odometries_with_noise;
+  //std::vector<Eigen::Matrix4d> odometries_with_noise;
 
   geometry_msgs::PoseStamped last_pose;
   Matrix3 BodyToRDF;
@@ -55,7 +55,7 @@ private:
       std::cout << transform_identity << std::endl;
       for (int i = 0; i < 50; i++) {
         odometries.push_back(transform_identity);
-        odometries_with_noise.push_back(transform_identity);
+        //odometries_with_noise.push_back(transform_identity);
       }
       initiated = true;
       return;
@@ -81,12 +81,13 @@ private:
     rotate(odometries.begin(),odometries.end()-1,odometries.end()); // Shift vector so each move back 1
     odometries.at(0) = current_transform;
 
-    Eigen::Matrix4d noise = Eigen::Matrix4d::Zero();
-    noise(0,3) = randomNoise(0.0, 0.3);
-    noise(1,3) = randomNoise(0.0, 0.3);
-    noise(2,3) = randomNoise(0.0, 0.1);
-    rotate(odometries_with_noise.begin(),odometries_with_noise.end()-1,odometries_with_noise.end());
-    odometries_with_noise.at(0) = current_transform + noise;
+    //Eigen::Matrix4d noise = Eigen::Matrix4d::Zero();
+    // turning off my own noise?
+    //noise(0,3) = randomNoise(0.0, 0.3);
+    //noise(1,3) = randomNoise(0.0, 0.3);
+    //noise(2,3) = randomNoise(0.0, 0.1);
+    //rotate(odometries_with_noise.begin(),odometries_with_noise.end()-1,odometries_with_noise.end());
+    //odometries_with_noise.at(0) = current_transform + noise;
   }
 
   double randomNoise(double mean, double sigma) {
@@ -131,24 +132,25 @@ private:
     return transform;
   }
 
-  // this function under construction
-  Eigen::Matrix4d transformFromPreviousBodyToWorldWithNoise(int fov_id) {
-    Eigen::Matrix4d transform = transform_body_to_world;
-    for (int i = 0; i < fov_id; i++) {
-      transform = odometries_with_noise.at(i) * transform;
-    }
-    return transform;
-  }
+  // this function not needed
+  // Eigen::Matrix4d transformFromPreviousBodyToWorldWithNoise(int fov_id) {
+  //   Eigen::Matrix4d transform = transform_body_to_world;
+  //   for (int i = 0; i < fov_id; i++) {
+  //     transform = odometries_with_noise.at(i) * transform;
+  //   }
+  //   return transform;
+  // }
 
   Eigen::Matrix4d transformFromCurrentBodyToPreviousBody(int fov_id) {
     Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(fov_id));
     return transform_world_to_previous_body_frame * transform_body_to_world;
   }
 
-  Eigen::Matrix4d transformFromCurrentBodyToPreviousBodyWithNoise(int fov_id) {
-    Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorldWithNoise(fov_id));
-    return transform_world_to_previous_body_frame * transform_body_to_world;
-  }
+  // this function not needed
+  // Eigen::Matrix4d transformFromCurrentBodyToPreviousBodyWithNoise(int fov_id) {
+  //   Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorldWithNoise(fov_id));
+  //   return transform_world_to_previous_body_frame * transform_body_to_world;
+  // }
 
 
   void PublishFovMarkers() {
@@ -163,7 +165,7 @@ private:
       Vector3 bottom_left = BodyToRDF_inverse * Vector3(-7,5.25,10);
       Vector3 body = Vector3(0,0,0);
 
-      Eigen::Matrix4d transform = transformFromPreviousBodyToWorldWithNoise(fov_id);
+      Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(fov_id);
       body = applyTransform(body, transform); // don't need to rotate 0,0,0
       Vector3 corner_1 = applyTransform(bottom_right, transform);
       Vector3 corner_2 = applyTransform(top_right, transform);
@@ -173,7 +175,7 @@ private:
 
       // DETERMINE IF -1 in current body frame is in front of previous pose
       Vector3 position_current_body_frame(0.0,3.0,0.0);
-      Eigen::Matrix4d transform_current_body_to_previous_body = transformFromCurrentBodyToPreviousBodyWithNoise(fov_id);
+      Eigen::Matrix4d transform_current_body_to_previous_body = transformFromCurrentBodyToPreviousBody(fov_id);
       Vector3 position_previous_body_frame = applyTransform(position_current_body_frame, transform_current_body_to_previous_body);
       Vector3 position_previous_rdf_frame = BodyToRDF * position_previous_body_frame;
       if (fov_evaluator.IsInFOV(position_previous_rdf_frame)) {
@@ -184,7 +186,7 @@ private:
       }
       PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4, color_in_fov);
 
-      Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorldWithNoise(fov_id);
+      Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(fov_id);
       Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform_to_world);
       PublishPositionMarker(position_world_frame, fov_id);
    }
