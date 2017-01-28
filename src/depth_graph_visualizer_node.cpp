@@ -1,5 +1,6 @@
 #include "transform_utils.h"
 #include "fov_visualizer.h"
+#include "fov_evaluator.h"
 #include <ros/ros.h>
 #include <nav_msgs/Path.h>
 #include <visualization_msgs/Marker.h>
@@ -39,6 +40,8 @@ private:
   Matrix3 BodyToRDF;
   Matrix3 BodyToRDF_inverse;
   Eigen::Matrix4d transform_body_to_world; // better if not class variable
+
+  FovEvaluator fov_evaluator;
 
   void OnPose( geometry_msgs::PoseStamped const& pose ) {
     if (!initiated) {
@@ -147,7 +150,8 @@ private:
       Vector3 position_current_body_frame(0.0,3.0,0.0);
       Eigen::Matrix4d transform_current_body_to_previous_body = transformFromCurrentBodyToPreviousBody(fov_id);
       Vector3 position_previous_body_frame = applyTransform(position_current_body_frame, transform_current_body_to_previous_body);
-      if (position_previous_body_frame(0) > 0.0) {
+      Vector3 position_previous_rdf_frame = BodyToRDF * position_previous_body_frame;
+      if (fov_evaluator.IsInFOV(position_previous_rdf_frame)) {
         color_in_fov = true;
       } 
       else {
