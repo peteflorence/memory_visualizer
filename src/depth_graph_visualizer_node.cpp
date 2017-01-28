@@ -65,6 +65,7 @@ private:
       last_pose = pose;
 
       PublishFovMarkers();
+      DeBug();
     }
   }
 
@@ -72,6 +73,17 @@ private:
     std::cout << "rotate and add" << std::endl;
     rotate(odometries.begin(),odometries.end()-1,odometries.end()); // Shift vector so each move back 1
     odometries.at(0) = current_transform;
+  }
+
+  void DeBug() {
+    Vector3 world_position(0,0,1);
+    Eigen::Matrix4d transform_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(10));
+
+    
+    Vector3 previous_body_frame_position = applyTransform(world_position, transform_to_previous_body_frame);
+    Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(10);
+    Vector3 new_world_position = applyTransform(previous_body_frame_position, transform_to_world);
+    PublishPositionMarker(new_world_position);
   }
 
   void PublishPositionMarker(Vector3 position_world_frame) {
@@ -96,6 +108,7 @@ private:
     fov_pub.publish( marker );
   } 
 
+  // this function works
   Eigen::Matrix4d transformFromPreviousBodyToWorld(int fov_id) {
     Eigen::Matrix4d transform = transform_body_to_world;
     for (int i = 0; i < fov_id; i++) {
@@ -149,7 +162,7 @@ private:
    Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(0);
    Vector3 position_current_body_frame(-1.0,0.0,0.0);
    Vector3 position_world_frame = applyTransform(position_current_body_frame, transform);
-   PublishPositionMarker(position_world_frame);
+   //PublishPositionMarker(position_world_frame);
  }
 
 	void PublishFovMarker(int fov_id, Vector3 body, Vector3 corner_1, Vector3 corner_2, Vector3 corner_3, Vector3 corner_4, bool color_in_fov) {
