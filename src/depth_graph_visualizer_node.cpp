@@ -64,7 +64,7 @@ private:
       transform_body_to_world = findTransform(pose);
       last_pose = pose;
 
-      PublishFovMarkers();
+      //PublishFovMarkers();
       DeBug();
     }
   }
@@ -76,12 +76,13 @@ private:
   }
 
   void DeBug() {
-    Vector3 world_position(0,0,1);
-    Eigen::Matrix4d transform_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(10));
+    int fov_id_debug = 10;
+    Vector3 current_body(0,0,1);
+    Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(fov_id_debug));
+    Eigen::Matrix4d transform_current_body_to_previous_body = transform_world_to_previous_body_frame * transform_body_to_world; // iterate here
 
-    
-    Vector3 previous_body_frame_position = applyTransform(world_position, transform_to_previous_body_frame);
-    Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(10);
+    Vector3 previous_body_frame_position = applyTransform(current_body, transform_current_body_to_previous_body);
+    Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(fov_id_debug);
     Vector3 new_world_position = applyTransform(previous_body_frame_position, transform_to_world);
     PublishPositionMarker(new_world_position);
   }
