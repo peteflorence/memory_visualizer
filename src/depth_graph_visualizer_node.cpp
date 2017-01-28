@@ -64,8 +64,8 @@ private:
       transform_body_to_world = findTransform(pose);
       last_pose = pose;
 
-      //PublishFovMarkers();
-      DeBug();
+      PublishFovMarkers();
+      //DeBug();
     }
   }
 
@@ -78,8 +78,7 @@ private:
   void DeBug() {
     int fov_id_debug = 10;
     Vector3 current_body(0,0,1);
-    Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(fov_id_debug));
-    Eigen::Matrix4d transform_current_body_to_previous_body = transform_world_to_previous_body_frame * transform_body_to_world; // iterate here
+    Eigen::Matrix4d transform_current_body_to_previous_body = transformFromCurrentBodyToPreviousBody(fov_id_debug);
 
     Vector3 previous_body_frame_position = applyTransform(current_body, transform_current_body_to_previous_body);
     Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(fov_id_debug);
@@ -120,11 +119,8 @@ private:
 
   // this function under construction
   Eigen::Matrix4d transformFromCurrentBodyToPreviousBody(int fov_id) {
-    Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
-    for (int i = 0; i < fov_id; i++) {
-      transform = transform * invertTransform(odometries.at(i));
-    }
-    return transform;
+    Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(fov_id));
+    return transform_world_to_previous_body_frame * transform_body_to_world;
   }
 
   void PublishFovMarkers() {
@@ -148,10 +144,10 @@ private:
 
 
       // DETERMINE IF -1 in current body frame is in front of previous pose
-      Vector3 position_current_body_frame(-1.0,0.0,0.0);
-      Eigen::Matrix4d transform_2 = transformFromCurrentBodyToPreviousBody(fov_id);
-      Vector3 position_previous_body_frame = applyTransform(position_previous_body_frame, transform_2);
-      if (position_previous_body_frame(0) > 0) {
+      Vector3 position_current_body_frame(-3.0,0.0,0.0);
+      Eigen::Matrix4d transform_current_body_to_previous_body = transformFromCurrentBodyToPreviousBody(fov_id);
+      Vector3 position_previous_body_frame = applyTransform(position_current_body_frame, transform_current_body_to_previous_body);
+      if (position_previous_body_frame(0) > 0.0) {
         color_in_fov = true;
       } 
       else {
@@ -161,9 +157,9 @@ private:
    }
   
    Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(0);
-   Vector3 position_current_body_frame(-1.0,0.0,0.0);
+   Vector3 position_current_body_frame(-3.0,0.0,0.0);
    Vector3 position_world_frame = applyTransform(position_current_body_frame, transform);
-   //PublishPositionMarker(position_world_frame);
+   PublishPositionMarker(position_world_frame);
  }
 
 	void PublishFovMarker(int fov_id, Vector3 body, Vector3 corner_1, Vector3 corner_2, Vector3 corner_3, Vector3 corner_4, bool color_in_fov) {
