@@ -35,6 +35,7 @@ private:
   bool initiated = false;
 	int counter = 0; // this just reduces to 33 Hz from 100 Hz
   std::vector<Eigen::Matrix4d> odometries;
+  std::vector<Eigen::Matrix4d> odometries_with_noise;
 
   geometry_msgs::PoseStamped last_pose;
   Matrix3 BodyToRDF;
@@ -51,6 +52,7 @@ private:
       std::cout << transform_identity << std::endl;
       for (int i = 0; i < 50; i++) {
         odometries.push_back(transform_identity);
+        odometries_with_noise.push_back(transform_identity);
       }
       initiated = true;
       return;
@@ -75,6 +77,13 @@ private:
     std::cout << "rotate and add" << std::endl;
     rotate(odometries.begin(),odometries.end()-1,odometries.end()); // Shift vector so each move back 1
     odometries.at(0) = current_transform;
+
+    Eigen::Matrix4d noise = Eigen::Matrix4d::Zero();
+    noise(0,3) = 0.2;
+    noise(1,3) = 0.3;
+    noise(2,3) = 0.1;
+    rotate(odometries_with_noise.begin(),odometries_with_noise.end()-1,odometries_with_noise.end());
+    odometries_with_noise.at(0) = current_transform + noise;
   }
 
 
@@ -111,15 +120,24 @@ private:
     return transform;
   }
 
+  // this function works
+  Eigen::Matrix4d transformFromPreviousBodyToWorldWithNoise(int fov_id) {
+    Eigen::Matrix4d transform = transform_body_to_world;
+    for (int i = 0; i < fov_id; i++) {
+      transform = odometries_with_noise.at(i) * transform;
+    }
+    return transform;
+  }
+
   Eigen::Matrix4d transformFromCurrentBodyToPreviousBody(int fov_id) {
     Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(fov_id));
     return transform_world_to_previous_body_frame * transform_body_to_world;
   }
 
-  // Eigen::Matrix4d transformFromCurrentBodyToPreviousBodyWithNoise(int fov_id) {
-  //   Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorld(fov_id));
-  //   return transform_world_to_previous_body_frame * transform_body_to_world;
-  // }
+  Eigen::Matrix4d transformFromCurrentBodyToPreviousBodyWithNoise(int fov_id) {
+    Eigen::Matrix4d transform_world_to_previous_body_frame = invertTransform(transformFromPreviousBodyToWorldWithNoise(fov_id));
+    return transform_world_to_previous_body_frame * transform_body_to_world;
+  }
 
 
   void PublishFovMarkers() {
