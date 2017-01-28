@@ -120,7 +120,7 @@ private:
     return transform;
   }
 
-  // this function works
+  // this function under construction
   Eigen::Matrix4d transformFromPreviousBodyToWorldWithNoise(int fov_id) {
     Eigen::Matrix4d transform = transform_body_to_world;
     for (int i = 0; i < fov_id; i++) {
@@ -152,7 +152,7 @@ private:
       Vector3 bottom_left = BodyToRDF_inverse * Vector3(-7,5.25,10);
       Vector3 body = Vector3(0,0,0);
 
-      Eigen::Matrix4d transform = transformFromPreviousBodyToWorld(fov_id);
+      Eigen::Matrix4d transform = transformFromPreviousBodyToWorldWithNoise(fov_id);
       body = applyTransform(body, transform); // don't need to rotate 0,0,0
       Vector3 corner_1 = applyTransform(bottom_right, transform);
       Vector3 corner_2 = applyTransform(top_right, transform);
@@ -162,7 +162,7 @@ private:
 
       // DETERMINE IF -1 in current body frame is in front of previous pose
       Vector3 position_current_body_frame(0.0,3.0,0.0);
-      Eigen::Matrix4d transform_current_body_to_previous_body = transformFromCurrentBodyToPreviousBody(fov_id);
+      Eigen::Matrix4d transform_current_body_to_previous_body = transformFromCurrentBodyToPreviousBodyWithNoise(fov_id);
       Vector3 position_previous_body_frame = applyTransform(position_current_body_frame, transform_current_body_to_previous_body);
       Vector3 position_previous_rdf_frame = BodyToRDF * position_previous_body_frame;
       if (fov_evaluator.IsInFOV(position_previous_rdf_frame)) {
@@ -173,8 +173,8 @@ private:
       }
       PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4, color_in_fov);
 
-      Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(0);
-      Vector3 position_world_frame = applyTransform(position_current_body_frame, transform_to_world);
+      Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(fov_id);
+      Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform_to_world);
       PublishPositionMarker(position_world_frame, fov_id);
    }
  }
