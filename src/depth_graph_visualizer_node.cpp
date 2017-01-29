@@ -152,6 +152,10 @@ private:
   //   return transform_world_to_previous_body_frame * transform_body_to_world;
   // }
 
+  Eigen::Matrix4d transformIncrementallyFromPreviousBodyToPreviousBody(int fov_id) {
+    return invertTransform(odometries.at(fov_id));
+  }
+
 
   void PublishFovMarkers() {
     bool color_in_fov = false;
@@ -190,6 +194,47 @@ private:
       Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform_to_world);
       PublishPositionMarker(position_world_frame, fov_id);
    }
+
+
+    // Checking to see if new incremental function works
+      // // start                                                                        // start in world
+      // Vector3 corner_1 = Vector3(7,5.25,10);
+      // Vector3 corner_2 = Vector3(7,-5.25,10);
+      // Vector3 corner_3 = Vector3(-7,-5.25,10);
+      // Vector3 corner_4 = Vector3(-7,5.25,10);
+      // Vector3 body = Vector3(0,0,0);
+
+      // body = applyTransform(body, invertTransform(transform_body_to_world));          // transform to body
+      // corner_1 = applyTransform(corner_1, invertTransform(transform_body_to_world));
+      // corner_2 = applyTransform(corner_2, invertTransform(transform_body_to_world));
+      // corner_3 = applyTransform(corner_3, invertTransform(transform_body_to_world));
+      // corner_4 = applyTransform(corner_4, invertTransform(transform_body_to_world));
+
+      // Eigen::Matrix4d transform = transformFromCurrentBodyToPreviousBody(30);         // transform back in pose chain to 30
+      // body = applyTransform(body, transform);
+      // corner_1 = applyTransform(corner_1, transform);
+      // corner_2 = applyTransform(corner_2, transform);
+      // corner_3 = applyTransform(corner_3, transform);
+      // corner_4 = applyTransform(corner_4, transform);
+
+      // int fov_id;
+      // for (fov_id = 30; fov_id < 40; fov_id++) {
+      //   Eigen::Matrix4d incremental_transform = transformIncrementallyFromPreviousBodyToPreviousBody(fov_id);  // incrementally transform to 30
+      //   body = applyTransform(body, incremental_transform);
+      //   corner_1 = applyTransform(corner_1, incremental_transform);
+      //   corner_2 = applyTransform(corner_2, incremental_transform);
+      //   corner_3 = applyTransform(corner_3, incremental_transform);
+      //   corner_4 = applyTransform(corner_4, incremental_transform);
+      // } 
+
+      // transform = transformFromPreviousBodyToWorld(fov_id);                            // transform back to world
+      // body = applyTransform(body, transform);
+      // corner_1 = applyTransform(corner_1, transform);
+      // corner_2 = applyTransform(corner_2, transform);
+      // corner_3 = applyTransform(corner_3, transform);
+      // corner_4 = applyTransform(corner_4, transform);
+
+      // PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4, color_in_fov);
  }
 
 	void PublishFovMarker(int fov_id, Vector3 body, Vector3 corner_1, Vector3 corner_2, Vector3 corner_3, Vector3 corner_4, bool color_in_fov) {
