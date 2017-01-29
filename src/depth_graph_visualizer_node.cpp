@@ -158,6 +158,8 @@ private:
 
 
   void PublishFovMarkers() {
+    bool publish_sampled_distributions = false;
+
     bool color_in_fov = false;
     for (int fov_id = 0; fov_id < 41; fov_id = fov_id + 10) {
       // FIND CORNERS
@@ -188,11 +190,14 @@ private:
       else {
         color_in_fov = false;
       }
-      PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4, color_in_fov);
 
-      Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(fov_id);
-      Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform_to_world);
-      PublishPositionMarker(position_world_frame, fov_id);
+      if (publish_sampled_distributions) {
+        PublishFovMarker(fov_id, body, corner_1, corner_2, corner_3, corner_4, color_in_fov);
+        Eigen::Matrix4d transform_to_world = transformFromPreviousBodyToWorld(fov_id);
+        Vector3 position_world_frame = applyTransform(position_previous_body_frame, transform_to_world);
+        PublishPositionMarker(position_world_frame, fov_id);
+      }
+
    }
 
 
