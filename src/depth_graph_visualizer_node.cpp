@@ -10,6 +10,13 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/CameraInfo.h>
 
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_ros/point_cloud.h>
+#include "pcl_ros/transforms.h"
+#include "pcl_ros/impl/transforms.hpp"
+
 #include "tf/tf.h"
 #include <tf/transform_listener.h>
 #include <tf2_ros/transform_listener.h>
@@ -30,6 +37,7 @@ public:
   	    // Publishers
 		fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
     poses_path_pub = nh.advertise<nav_msgs::Path>("poses_path", 0);
+    point_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged", 0);
 
     camera_info_sub = nh.subscribe("depth_camera_info", 1, &MemoryVisualizerNode::OnCameraInfo, this);
     depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
@@ -71,7 +79,26 @@ private:
   void OnDepthImage(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
     //ROS_INFO("GOT POINT CLOUD");
     //std::cout << "got depth image: " << point_cloud_ctr  << std::endl;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr world_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+    Eigen::Matrix4f transform_to_world; // Your Transformation Matrix
+    transform_to_world.setIdentity();   // Set to Identity to make bottom row of Matrix 0,0,0,1
+    TransformToWorldFromPose(transform_to_world, point_cloud_msg, world_cloud);
+
     point_cloud_ctr++;
+  }
+
+ void TransformToWorldFromPose(Eigen::Matrix4f transform_to_world, const sensor_msgs::PointCloud2ConstPtr msg, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_out){
+    sensor_msgs::PointCloud2 msg_out;
+
+    pcl_ros::transformPointCloud(transform_to_world, *msg, msg_out);
+
+    pcl::PCLPointCloud2 cloud2;
+    pcl_conversions::toPCL(msg_out, cloud2);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::fromPCLPointCloud2(cloud2,*cloud);
+
+    cloud_out = cloud;
   }
 
 
@@ -352,6 +379,7 @@ private:
 
 	ros::Publisher fov_pub;
   ros::Publisher poses_path_pub;
+  ros::Publisher point_cloud_pub;
 
 	std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 	tf2_ros::Buffer tf_buffer_;
