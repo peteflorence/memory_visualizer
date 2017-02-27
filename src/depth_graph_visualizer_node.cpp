@@ -27,6 +27,8 @@ public:
 		pose_sub = nh.subscribe("/pose", 1, &MemoryVisualizerNode::OnPose, this);
   	    // Publishers
 		fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
+    poses_path_pub = nh.advertise<nav_msgs::Path>("poses_path", 0);
+
 		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(tf_buffer_);
 
     srand(time(NULL)); // initialize random seed
@@ -34,6 +36,8 @@ public:
 	}
 
 private:
+
+  std::vector<geometry_msgs::PoseStamped> poses_path;
 
   bool initiated = false;
 	int counter = 0; // this just reduces to 33 Hz from 100 Hz
@@ -48,6 +52,39 @@ private:
 
   FovEvaluator fov_evaluator;
 
+
+  void AddToPosesPath( geometry_msgs::PoseStamped const& pose ) {
+
+    if (  poses_path.size() < 300) {
+      poses_path.push_back(pose);
+    }
+    else {
+      rotate(poses_path.begin(),poses_path.end()-1,poses_path.end()); // Shift vector so each move back 1
+      poses_path.at(0) = pose;
+    }
+
+    PublishPosesPath();
+  }
+
+  void PublishPosesPath() {
+    geometry_msgs::PoseStamped pose_array [poses_path.size()];
+
+    nav_msgs::Path path;
+    path.poses.resize(poses_path.size());
+
+    for (size_t i = 0; i < poses_path.size(); i++ ) {
+      path.poses[i] = poses_path.at(i);
+    }
+
+    path.header.seq = 0;
+    path.header.stamp = poses_path.at(poses_path.size()-1).header.stamp;
+    path.header.frame_id = poses_path.at(poses_path.size()-1).header.frame_id;
+    std::cout << "Publishing path of length " << poses_path.size() << std::endl;
+    poses_path_pub.publish(path);
+
+  }
+
+  
   void OnPose( geometry_msgs::PoseStamped const& pose ) {
     if (!initiated) {
       last_pose = pose;
@@ -76,6 +113,9 @@ private:
 
       PublishFovMarkers();
     }
+
+    AddToPosesPath(pose);
+
   }
 
   void AddToOdometries(Eigen::Matrix4d current_transform) {
@@ -283,6 +323,7 @@ private:
 	ros::Subscriber pose_sub;
 
 	ros::Publisher fov_pub;
+  ros::Publisher poses_path_pub;
 
 	std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 	tf2_ros::Buffer tf_buffer_;
