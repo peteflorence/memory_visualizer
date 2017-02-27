@@ -13,6 +13,7 @@ typedef Eigen::Matrix<Scalar, 3, 3> Matrix3;
 #include "geometry_msgs/Point.h"
 
 std_msgs::ColorRGBA GetColorForFOV(int fov_id) {
+  fov_id = fov_id + 100;
   std_msgs::ColorRGBA c;
   if (fov_id == 0 ) {
     //purple

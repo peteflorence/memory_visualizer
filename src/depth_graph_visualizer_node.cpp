@@ -30,6 +30,7 @@ public:
 		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(tf_buffer_);
 
     srand(time(NULL)); // initialize random seed
+    std::cout << "initiated" << std::endl;
 	}
 
 private:
@@ -65,6 +66,7 @@ private:
     if (counter >= 10) {
       BodyToRDF = GetBodyToRDFRotationMatrix(); // could do only once later -- being safe for now
       BodyToRDF_inverse = BodyToRDF.inverse();
+
       counter = 0;
       ROS_INFO("GOT POSE");
 
@@ -161,7 +163,7 @@ private:
     bool publish_sampled_distributions = false;
 
     bool color_in_fov = false;
-    for (int fov_id = 0; fov_id < 41; fov_id = fov_id + 10) {
+    for (int fov_id = 0; fov_id < 50; fov_id = fov_id + 1) {
       // FIND CORNERS
 
       // start in that poses' rdf, and rotate to body
@@ -251,7 +253,7 @@ private:
   Matrix3 GetBodyToRDFRotationMatrix() {
     geometry_msgs::TransformStamped tf;
       try {
-        tf = tf_buffer_.lookupTransform("r200_depth_optical_frame", "body", 
+        tf = tf_buffer_.lookupTransform("xtion_depth_optical_frame", "body", 
                                     ros::Time(0), ros::Duration(1/30.0));
       } catch (tf2::TransformException &ex) {
         ROS_ERROR("%s", ex.what());
@@ -293,5 +295,12 @@ int main(int argc, char* argv[]) {
 	std::cout << "Initializing memory_visualizer_node node" << std::endl;
 	ros::init(argc, argv, "MemoryVisualizerNode");
 	MemoryVisualizerNode memory_visualizer_node;
-	ros::spin();
+  ros::Rate spin_rate(100);
+
+  while (ros::ok()) {
+    //std::cout << "spin" << std::endl;
+    ros::spinOnce();
+    spin_rate.sleep();
+  }
+
 }
