@@ -7,6 +7,8 @@
 #include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/TwistStamped.h"
 #include "geometry_msgs/Point.h"
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/CameraInfo.h>
 
 #include "tf/tf.h"
 #include <tf/transform_listener.h>
@@ -24,10 +26,13 @@ public:
 
 	MemoryVisualizerNode() {
 		// Subscribers
-		pose_sub = nh.subscribe("/pose", 1, &MemoryVisualizerNode::OnPose, this);
+		pose_sub = nh.subscribe("/pose", 100, &MemoryVisualizerNode::OnPose, this);
   	    // Publishers
 		fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
     poses_path_pub = nh.advertise<nav_msgs::Path>("poses_path", 0);
+
+    camera_info_sub = nh.subscribe("depth_camera_info", 1, &MemoryVisualizerNode::OnCameraInfo, this);
+    depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
 
 		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(tf_buffer_);
 
@@ -51,6 +56,23 @@ private:
 
 
   FovEvaluator fov_evaluator;
+
+  bool got_camera_info = false;
+  std::string depth_sensor_frame = "depth_sensor";
+  void OnCameraInfo(const sensor_msgs::CameraInfo msg) {
+    if (got_camera_info) {
+      return;
+    }
+    got_camera_info = true;
+    depth_sensor_frame = msg.header.frame_id;
+  }
+
+  size_t point_cloud_ctr = 0;
+  void OnDepthImage(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
+    //ROS_INFO("GOT POINT CLOUD");
+    //std::cout << "got depth image: " << point_cloud_ctr  << std::endl;
+    point_cloud_ctr++;
+  }
 
 
   void AddToPosesPath( geometry_msgs::PoseStamped const& pose ) {
@@ -79,13 +101,17 @@ private:
     path.header.seq = 0;
     path.header.stamp = poses_path.at(poses_path.size()-1).header.stamp;
     path.header.frame_id = poses_path.at(poses_path.size()-1).header.frame_id;
-    std::cout << "Publishing path of length " << poses_path.size() << std::endl;
+    //std::cout << "Publishing path of length " << poses_path.size() << std::endl;
     poses_path_pub.publish(path);
 
   }
 
-  
+
+  size_t pose_ctr = 0;
   void OnPose( geometry_msgs::PoseStamped const& pose ) {
+    //std::cout << "got pose: " << pose_ctr << std::endl;
+    pose_ctr++;
+
     if (!initiated) {
       last_pose = pose;
       Eigen::Matrix4d transform_identity = Eigen::Matrix4d::Identity();
@@ -105,7 +131,7 @@ private:
       BodyToRDF_inverse = BodyToRDF.inverse();
 
       counter = 0;
-      ROS_INFO("GOT POSE");
+      //ROS_INFO("GOT POSE");
 
       AddToOdometries(findTransform(pose, last_pose));
       transform_body_to_world = findTransform(pose);
@@ -119,7 +145,7 @@ private:
   }
 
   void AddToOdometries(Eigen::Matrix4d current_transform) {
-    std::cout << "rotate and add" << std::endl;
+    //std::cout << "rotate and add" << std::endl;
     rotate(odometries.begin(),odometries.end()-1,odometries.end()); // Shift vector so each move back 1
     odometries.at(0) = current_transform;
 
@@ -321,6 +347,8 @@ private:
 	std::string drawing_frame = "world";
 
 	ros::Subscriber pose_sub;
+  ros::Subscriber camera_info_sub;
+  ros::Subscriber depth_image_sub;
 
 	ros::Publisher fov_pub;
   ros::Publisher poses_path_pub;
