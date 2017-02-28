@@ -12,9 +12,15 @@ Matrix3 constructR( geometry_msgs::PoseStamped const& pose );
 
 Vector3 constructt( geometry_msgs::PoseStamped const& pose );
 
+Eigen::Matrix3f constructRf( geometry_msgs::PoseStamped const& pose );
+
+Eigen::Vector3f constructtf( geometry_msgs::PoseStamped const& pose );
+
 Eigen::Matrix4d findTransform(geometry_msgs::PoseStamped const& new_pose, geometry_msgs::PoseStamped const& previous_pose);
 
 Eigen::Matrix4d findTransform(geometry_msgs::PoseStamped const& pose);
+
+Eigen::Matrix4f findTransform4f(geometry_msgs::PoseStamped const& pose);
 
 Eigen::Matrix4d invertTransform(Eigen::Matrix4d transform);
 

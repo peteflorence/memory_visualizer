@@ -38,8 +38,9 @@ public:
 		fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
     poses_path_pub = nh.advertise<nav_msgs::Path>("poses_path", 0);
 
-    point_cloud_pub_incremental = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_incremental", 0);
-    point_cloud_pub_querying_back = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_queryingback", 0);
+    point_cloud_pub_last_pose = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_last_pose", 0);
+    point_cloud_pub_query_now = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_query_now", 0);
+    point_cloud_pub_query_back = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_query_back", 0);
 
     camera_info_sub = nh.subscribe("depth_camera_info", 1, &MemoryVisualizerNode::OnCameraInfo, this);
     depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
@@ -54,7 +55,8 @@ private:
 
   std::vector<geometry_msgs::PoseStamped> poses_path;
   std::vector<sensor_msgs::PointCloud2ConstPtr> point_cloud_ptrs;
-  std::vector<Eigen::Matrix4f> transform_poses;
+  std::vector<Eigen::Matrix4f> transform_poses_query_now;
+  std::vector<Eigen::Matrix4f> transform_poses_last_pose;
 
   bool initiated = false;
 	int counter = 0; // this just reduces to 33 Hz from 100 Hz
@@ -79,21 +81,31 @@ private:
     depth_sensor_frame = msg.header.frame_id;
   }
 
+  Eigen::Matrix4f GetRDFToBodyTransform() {
+    Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+    Eigen::Matrix3f R = BodyToRDF_inverse.cast <float> ();
+    transform.block<3,3>(0,0) = R;
+    return transform;
+  }
+
   size_t point_cloud_ctr = 0;
   void OnDepthImage(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
     //ROS_INFO("GOT POINT CLOUD");
     size_t num_point_clouds = 90;
-    if (point_cloud_ptrs.size() < num_point_clouds) {  
-      transform_poses.push_back(FindTransformNow());
+    if (point_cloud_ptrs.size() < num_point_clouds) {
+      transform_poses_last_pose.push_back(findTransform4f(last_pose)*GetRDFToBodyTransform());
+      transform_poses_query_now.push_back(FindTransformNow());
       point_cloud_ptrs.push_back(point_cloud_msg);
       return;
     }
     // rotate(point_cloud_ptrs.begin(),point_cloud_ptrs.end()-1,point_cloud_ptrs.end()); // Shift vector so each move back 1
     // point_cloud_ptrs.at(0) = point_cloud_msg;
-    PublishMergedPointCloudIncremental(); 
+    PublishMergedPointCloudLastPoses();
+    PublishMergedPointCloudQueryNow(); 
     PublishMergedPointCloudQueryingBack();
 
-    transform_poses.clear();
+    transform_poses_last_pose.clear();
+    transform_poses_query_now.clear();
     point_cloud_ptrs.clear();
 
     // pcl::PointCloud<pcl::PointXYZ>::Ptr world_cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -125,23 +137,38 @@ private:
     return transform_eigen;
   }
 
- void PublishMergedPointCloudIncremental() {
+ void PublishMergedPointCloudQueryNow() {
     sensor_msgs::PointCloud2 merged_cloud;
     pcl::PointCloud<pcl::PointXYZ> merged_cloud_pcl;
-
     sensor_msgs::PointCloud2 new_cloud;
     pcl::PointCloud<pcl::PointXYZ> new_cloud_pcl;
 
     geometry_msgs::TransformStamped tf;
     for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {
-      pcl_ros::transformPointCloud(transform_poses.at(i),*point_cloud_ptrs.at(i), new_cloud);
+      pcl_ros::transformPointCloud(transform_poses_query_now.at(i),*point_cloud_ptrs.at(i), new_cloud);
       pcl::fromROSMsg(new_cloud, new_cloud_pcl);
       merged_cloud_pcl = merged_cloud_pcl + new_cloud_pcl;
     }
 
     pcl::toROSMsg(merged_cloud_pcl, merged_cloud);
     merged_cloud.header.frame_id = "world";
-    point_cloud_pub_incremental.publish(merged_cloud);
+    point_cloud_pub_query_now.publish(merged_cloud);
+  }
+
+  void PublishMergedPointCloudLastPoses() {
+    sensor_msgs::PointCloud2 merged_cloud;
+    pcl::PointCloud<pcl::PointXYZ> merged_cloud_pcl;
+    sensor_msgs::PointCloud2 new_cloud;
+    pcl::PointCloud<pcl::PointXYZ> new_cloud_pcl;
+    geometry_msgs::TransformStamped tf;
+    for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {
+      pcl_ros::transformPointCloud(transform_poses_last_pose.at(i),*point_cloud_ptrs.at(i), new_cloud);
+      pcl::fromROSMsg(new_cloud, new_cloud_pcl);
+      merged_cloud_pcl = merged_cloud_pcl + new_cloud_pcl;
+    }
+    pcl::toROSMsg(merged_cloud_pcl, merged_cloud);
+    merged_cloud.header.frame_id = "world";
+    point_cloud_pub_last_pose.publish(merged_cloud);
   }
 
   void PublishMergedPointCloudQueryingBack() {
@@ -174,7 +201,7 @@ private:
 
     pcl::toROSMsg(merged_cloud_pcl, merged_cloud);
     merged_cloud.header.frame_id = "world";
-    point_cloud_pub_querying_back.publish(merged_cloud);
+    point_cloud_pub_query_back.publish(merged_cloud);
   }
 
  void TransformToWorldFromPose(Eigen::Matrix4f transform_to_world, const sensor_msgs::PointCloud2ConstPtr msg, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_out){
@@ -469,8 +496,9 @@ private:
 
 	ros::Publisher fov_pub;
   ros::Publisher poses_path_pub;
-  ros::Publisher point_cloud_pub_incremental;
-  ros::Publisher point_cloud_pub_querying_back;
+  ros::Publisher point_cloud_pub_last_pose;
+  ros::Publisher point_cloud_pub_query_now;
+  ros::Publisher point_cloud_pub_query_back;
 
 	std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 	tf2_ros::Buffer tf_buffer_;
