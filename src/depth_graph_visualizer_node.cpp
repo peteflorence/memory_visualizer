@@ -34,6 +34,9 @@ public:
 	MemoryVisualizerNode() {
 		// Subscribers
 		pose_sub = nh.subscribe("/pose", 100, &MemoryVisualizerNode::OnPose, this);
+    smoothed_path_sub = nh.subscribe("/samros/keyposes", 100, &MemoryVisualizerNode::OnSmoothedPath, this);
+
+
   	    // Publishers
 		fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
     poses_path_pub = nh.advertise<nav_msgs::Path>("poses_path", 0);
@@ -48,6 +51,20 @@ public:
 		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(tf_buffer_);
 
     srand(time(NULL)); // initialize random seed
+
+    for(;;){
+        try {
+
+          tf_buffer_.lookupTransform("world", "body", 
+                                        ros::Time(0), ros::Duration(30.0));
+        } catch (tf2::TransformException &ex) {
+          continue;
+        }
+
+        break;
+    }
+
+
     std::cout << "initiated" << std::endl;
 	}
 
@@ -288,6 +305,12 @@ private:
 
   }
 
+  nav_msgs::Path last_path;
+  void OnSmoothedPath( nav_msgs::Path const& path_msg ) {
+    ROS_INFO("GOT SMOOTHED PATH");
+    last_path = path_msg;
+  }
+
   void AddToOdometries(Eigen::Matrix4d current_transform) {
     //std::cout << "rotate and add" << std::endl;
     rotate(odometries.begin(),odometries.end()-1,odometries.end()); // Shift vector so each move back 1
@@ -491,6 +514,7 @@ private:
 	std::string drawing_frame = "world";
 
 	ros::Subscriber pose_sub;
+  ros::Subscriber smoothed_path_sub;
   ros::Subscriber camera_info_sub;
   ros::Subscriber depth_image_sub;
 
