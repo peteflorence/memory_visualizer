@@ -79,32 +79,16 @@ private:
   size_t point_cloud_ctr = 0;
   void OnDepthImage(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
     //ROS_INFO("GOT POINT CLOUD");
-    size_t num_point_clouds = 5;
-    if (  point_cloud_ptrs.size() < num_point_clouds) {  
+    size_t num_point_clouds = 90;
+    if (point_cloud_ptrs.size() < num_point_clouds) {  
       point_cloud_ptrs.push_back(point_cloud_msg);
       return;
     }
-    rotate(point_cloud_ptrs.begin(),point_cloud_ptrs.end()-1,point_cloud_ptrs.end()); // Shift vector so each move back 1
-    point_cloud_ptrs.at(0) = point_cloud_msg;
+    // rotate(point_cloud_ptrs.begin(),point_cloud_ptrs.end()-1,point_cloud_ptrs.end()); // Shift vector so each move back 1
+    // point_cloud_ptrs.at(0) = point_cloud_msg;
+    PublishMergedPointCloud();
 
-    sensor_msgs::PointCloud2 merged_cloud;
-    pcl::PointCloud<pcl::PointXYZ> merged_cloud_pcl;
-
-    sensor_msgs::PointCloud2 new_cloud;
-    pcl::PointCloud<pcl::PointXYZ> new_cloud_pcl;
-
-    for (size_t i = 0; i < num_point_clouds; i++) {
-      Eigen::Matrix4f transform_to_world; // Your Transformation Matrix
-      transform_to_world.setIdentity();   // Set to Identity to make bottom row of Matrix 0,0,0,1
-      transform_to_world(2,3) = 10*i;
-      pcl_ros::transformPointCloud(transform_to_world,*point_cloud_msg, new_cloud);
-      pcl::fromROSMsg(new_cloud, new_cloud_pcl);
-      merged_cloud_pcl = merged_cloud_pcl + new_cloud_pcl;
-    }
-
-    pcl::toROSMsg(merged_cloud_pcl, merged_cloud);
-    merged_cloud.header.frame_id = "world";
-    point_cloud_pub.publish(merged_cloud);
+    point_cloud_ptrs.clear();
 
     // pcl::PointCloud<pcl::PointXYZ>::Ptr world_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
@@ -112,8 +96,44 @@ private:
     // transform_to_world.setIdentity();   // Set to Identity to make bottom row of Matrix 0,0,0,1
     // transform_to_world(2,3) = 50;
     // TransformToWorldFromPose(transform_to_world, point_cloud_msg, world_cloud);
-
     point_cloud_ctr++;
+  }
+
+  void PublishMergedPointCloud() {
+    sensor_msgs::PointCloud2 merged_cloud;
+    pcl::PointCloud<pcl::PointXYZ> merged_cloud_pcl;
+
+    sensor_msgs::PointCloud2 new_cloud;
+    pcl::PointCloud<pcl::PointXYZ> new_cloud_pcl;
+
+    geometry_msgs::TransformStamped tf;
+    for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {
+      // what was point cloud time stamp?
+
+      try {
+        tf = tf_buffer_.lookupTransform("world", depth_sensor_frame,
+                                      point_cloud_ptrs.at(i)->header.stamp, ros::Duration(1/30.0));
+        } catch (tf2::TransformException &ex) {
+          ROS_ERROR("8 %s", ex.what());
+        return;
+      }
+
+      Eigen::Quaternionf quat(tf.transform.rotation.w, tf.transform.rotation.x, tf.transform.rotation.y, tf.transform.rotation.z);
+      Eigen::Matrix3f R = quat.toRotationMatrix();
+      Eigen::Vector4f T = Eigen::Vector4f(tf.transform.translation.x,tf.transform.translation.y,tf.transform.translation.z, 1.0); 
+      Eigen::Matrix4f transform_eigen; // Your Transformation Matrix
+      transform_eigen.setIdentity();   // Set to Identity to make bottom row of Matrix 0,0,0,1
+      transform_eigen.block<3,3>(0,0) = R;
+      transform_eigen.col(3) = T;
+
+      pcl_ros::transformPointCloud(transform_eigen,*point_cloud_ptrs.at(i), new_cloud);
+      pcl::fromROSMsg(new_cloud, new_cloud_pcl);
+      merged_cloud_pcl = merged_cloud_pcl + new_cloud_pcl;
+    }
+
+    pcl::toROSMsg(merged_cloud_pcl, merged_cloud);
+    merged_cloud.header.frame_id = "world";
+    point_cloud_pub.publish(merged_cloud);
   }
 
  void TransformToWorldFromPose(Eigen::Matrix4f transform_to_world, const sensor_msgs::PointCloud2ConstPtr msg, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_out){
@@ -377,7 +397,7 @@ private:
   Matrix3 GetBodyToRDFRotationMatrix() {
     geometry_msgs::TransformStamped tf;
       try {
-        tf = tf_buffer_.lookupTransform("xtion_depth_optical_frame", "body", 
+        tf = tf_buffer_.lookupTransform(depth_sensor_frame, "body", 
                                     ros::Time(0), ros::Duration(1/30.0));
       } catch (tf2::TransformException &ex) {
         ROS_ERROR("%s", ex.what());
