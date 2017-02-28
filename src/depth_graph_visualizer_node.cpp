@@ -280,20 +280,28 @@ private:
       // std::cout << "t_2_time " << t_2_time << std::endl;
 
       double t_parameter = t_1 / (t_1 + t_2);
-      geometry_msgs::PoseStamped pose_interpolate = InterpolateBetweenPoses(pose_before, pose_after, t_parameter, query_time);
-      transform = findTransform4f(pose_interpolate);
-     
+      transform = InterpolateBetweenPoses(pose_before, pose_after, t_parameter, query_time);
     }
   }
 
-  geometry_msgs::PoseStamped InterpolateBetweenPoses(geometry_msgs::PoseStamped const& pose_before, geometry_msgs::PoseStamped const& pose_after, double t_parameter, ros::Time time_for_pose) {
-    geometry_msgs::PoseStamped interpolated_pose;
-    interpolated_pose = pose_before;
+  Eigen::Matrix4f InterpolateBetweenPoses(geometry_msgs::PoseStamped const& pose_before, geometry_msgs::PoseStamped const& pose_after, double t_parameter, ros::Time time_for_pose) {
 
     // need to actually do interpolation
 
-    interpolated_pose.header.stamp = time_for_pose;
-    return interpolated_pose;
+    // position interpolation
+    Eigen::Vector3f vector_before(pose_before.pose.position.x, pose_before.pose.position.y, pose_before.pose.position.z);
+    Eigen::Vector3f vector_after(pose_after.pose.position.x, pose_after.pose.position.y, pose_after.pose.position.z);
+    Eigen::Vector3f interpolated_vector = vector_before + (vector_after - vector_before)*t_parameter;
+
+    Eigen::Quaternionf quat_before(pose_before.pose.orientation.w, pose_before.pose.orientation.x, pose_before.pose.orientation.y, pose_before.pose.orientation.z);
+    Eigen::Quaternionf quat_after(pose_after.pose.orientation.w, pose_after.pose.orientation.x, pose_after.pose.orientation.y, pose_after.pose.orientation.z);
+    Eigen::Quaternionf interpolated_quat;
+    interpolated_quat = quat_before.slerp(t_parameter, quat_after);
+
+    Eigen::Matrix4f interpolated_transform = Eigen::Matrix4f::Identity();
+    interpolated_transform.block<3,3>(0,0) = interpolated_quat.toRotationMatrix();;
+    interpolated_transform.block<3,1>(0,3) = interpolated_vector;
+    return interpolated_transform;
   }
 
 
