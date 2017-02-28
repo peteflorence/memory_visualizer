@@ -44,6 +44,7 @@ public:
     point_cloud_pub_last_pose = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_last_pose", 0);
     point_cloud_pub_query_now = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_query_now", 0);
     point_cloud_pub_query_back = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_query_back", 0);
+    point_cloud_pub_smoothed = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_smoothed", 0);
 
     camera_info_sub = nh.subscribe("depth_camera_info", 1, &MemoryVisualizerNode::OnCameraInfo, this);
     depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
@@ -117,9 +118,11 @@ private:
     }
     // rotate(point_cloud_ptrs.begin(),point_cloud_ptrs.end()-1,point_cloud_ptrs.end()); // Shift vector so each move back 1
     // point_cloud_ptrs.at(0) = point_cloud_msg;
-    PublishMergedPointCloudLastPoses();
-    PublishMergedPointCloudQueryNow(); 
+
+    //PublishMergedPointCloudLastPoses();
+    //PublishMergedPointCloudQueryNow(); 
     PublishMergedPointCloudQueryingBack();
+    PublishMergedPointCloudSmoothed();
 
     transform_poses_last_pose.clear();
     transform_poses_query_now.clear();
@@ -221,6 +224,82 @@ private:
     point_cloud_pub_query_back.publish(merged_cloud);
   }
 
+  void PublishMergedPointCloudSmoothed() {
+    sensor_msgs::PointCloud2 merged_cloud;
+    pcl::PointCloud<pcl::PointXYZ> merged_cloud_pcl;
+
+    sensor_msgs::PointCloud2 new_cloud;
+    pcl::PointCloud<pcl::PointXYZ> new_cloud_pcl;
+
+    geometry_msgs::TransformStamped tf;
+    for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {
+
+      Eigen::Matrix4f transform_eigen;
+      bool can_interpolate;
+      findTransformFromSmoothedPath(point_cloud_ptrs.at(i)->header.stamp, transform_eigen, can_interpolate);
+      if (can_interpolate) {
+        pcl_ros::transformPointCloud(transform_eigen*GetRDFToBodyTransform(),*point_cloud_ptrs.at(i), new_cloud);
+        pcl::fromROSMsg(new_cloud, new_cloud_pcl);
+        merged_cloud_pcl = merged_cloud_pcl + new_cloud_pcl;
+     }
+    }
+
+    pcl::toROSMsg(merged_cloud_pcl, merged_cloud);
+    merged_cloud.header.frame_id = "world";
+    point_cloud_pub_smoothed.publish(merged_cloud);
+  }
+
+  void findTransformFromSmoothedPath(ros::Time query_time, Eigen::Matrix4f &transform, bool &can_interpolate) {
+    if (last_smoothed_path.poses.size() > 0) {
+      if ((query_time < last_smoothed_path.poses[0].header.stamp) || (query_time > last_smoothed_path.poses[last_smoothed_path.poses.size()-1].header.stamp)) {
+        can_interpolate = false;
+        return;
+      }
+      can_interpolate = true;
+
+      // find pose_before and pose_after
+      geometry_msgs::PoseStamped pose_before = last_smoothed_path.poses[0];
+      geometry_msgs::PoseStamped pose_after;
+      for (size_t i = 1; i < last_smoothed_path.poses.size(); i++) {
+        pose_after = last_smoothed_path.poses[i];
+        if (pose_after.header.stamp > query_time) {
+          break;
+        }
+        pose_before = pose_after;
+      }
+
+      // find pose interpolation parameter
+      double t_1 = query_time.toSec() - pose_before.header.stamp.toSec();
+      double t_2 = pose_after.header.stamp.toSec() - query_time.toSec();
+
+      //ros::Duration t_1_time = query_time - pose_before.header.stamp; // if need a few more digits of precision, can switch
+      //ros::Duration t_2_time = pose_after.header.stamp - query_time;
+      // std::cout << "t_1 " << t_1 << std::endl;
+      // std::cout << "t_2 " << t_2 << std::endl;
+      // std::cout << "t_1_time " << t_1_time << std::endl;
+      // std::cout << "t_2_time " << t_2_time << std::endl;
+
+      double t_parameter = t_1 / (t_1 + t_2);
+      geometry_msgs::PoseStamped pose_interpolate = InterpolateBetweenPoses(pose_before, pose_after, t_parameter, query_time);
+      transform = findTransform4f(pose_interpolate);
+     
+    }
+  }
+
+  geometry_msgs::PoseStamped InterpolateBetweenPoses(geometry_msgs::PoseStamped const& pose_before, geometry_msgs::PoseStamped const& pose_after, double t_parameter, ros::Time time_for_pose) {
+    geometry_msgs::PoseStamped interpolated_pose;
+    interpolated_pose = pose_before;
+
+    // need to actually do interpolation
+
+    interpolated_pose.header.stamp = time_for_pose;
+    return interpolated_pose;
+  }
+
+
+
+
+
  void TransformToWorldFromPose(Eigen::Matrix4f transform_to_world, const sensor_msgs::PointCloud2ConstPtr msg, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_out){
     sensor_msgs::PointCloud2 msg_out;
     msg_out.header.frame_id = "world";
@@ -305,10 +384,10 @@ private:
 
   }
 
-  nav_msgs::Path last_path;
+  nav_msgs::Path last_smoothed_path;
   void OnSmoothedPath( nav_msgs::Path const& path_msg ) {
     ROS_INFO("GOT SMOOTHED PATH");
-    last_path = path_msg;
+    last_smoothed_path = path_msg;
   }
 
   void AddToOdometries(Eigen::Matrix4d current_transform) {
@@ -523,6 +602,7 @@ private:
   ros::Publisher point_cloud_pub_last_pose;
   ros::Publisher point_cloud_pub_query_now;
   ros::Publisher point_cloud_pub_query_back;
+  ros::Publisher point_cloud_pub_smoothed;
 
 	std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 	tf2_ros::Buffer tf_buffer_;
