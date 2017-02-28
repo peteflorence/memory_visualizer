@@ -37,7 +37,9 @@ public:
   	    // Publishers
 		fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
     poses_path_pub = nh.advertise<nav_msgs::Path>("poses_path", 0);
-    point_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged", 0);
+
+    point_cloud_pub_incremental = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_incremental", 0);
+    point_cloud_pub_querying_back = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_queryingback", 0);
 
     camera_info_sub = nh.subscribe("depth_camera_info", 1, &MemoryVisualizerNode::OnCameraInfo, this);
     depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
@@ -52,6 +54,7 @@ private:
 
   std::vector<geometry_msgs::PoseStamped> poses_path;
   std::vector<sensor_msgs::PointCloud2ConstPtr> point_cloud_ptrs;
+  std::vector<Eigen::Matrix4f> transform_poses;
 
   bool initiated = false;
 	int counter = 0; // this just reduces to 33 Hz from 100 Hz
@@ -81,13 +84,16 @@ private:
     //ROS_INFO("GOT POINT CLOUD");
     size_t num_point_clouds = 90;
     if (point_cloud_ptrs.size() < num_point_clouds) {  
+      transform_poses.push_back(FindTransformNow());
       point_cloud_ptrs.push_back(point_cloud_msg);
       return;
     }
     // rotate(point_cloud_ptrs.begin(),point_cloud_ptrs.end()-1,point_cloud_ptrs.end()); // Shift vector so each move back 1
     // point_cloud_ptrs.at(0) = point_cloud_msg;
-    PublishMergedPointCloud();
+    PublishMergedPointCloudIncremental(); 
+    PublishMergedPointCloudQueryingBack();
 
+    transform_poses.clear();
     point_cloud_ptrs.clear();
 
     // pcl::PointCloud<pcl::PointXYZ>::Ptr world_cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -99,7 +105,27 @@ private:
     point_cloud_ctr++;
   }
 
-  void PublishMergedPointCloud() {
+  Eigen::Matrix4f FindTransformNow() {
+    geometry_msgs::TransformStamped tf;
+    try {
+      tf = tf_buffer_.lookupTransform("world", depth_sensor_frame,
+                                    ros::Time(0), ros::Duration(1/30.0));
+      } catch (tf2::TransformException &ex) {
+      ROS_ERROR("8 %s", ex.what());
+      Eigen::Matrix4f transform;
+      return transform.setIdentity();
+    }
+    Eigen::Quaternionf quat(tf.transform.rotation.w, tf.transform.rotation.x, tf.transform.rotation.y, tf.transform.rotation.z);
+    Eigen::Matrix3f R = quat.toRotationMatrix();
+    Eigen::Vector4f T = Eigen::Vector4f(tf.transform.translation.x,tf.transform.translation.y,tf.transform.translation.z, 1.0); 
+    Eigen::Matrix4f transform_eigen; // Your Transformation Matrix
+    transform_eigen.setIdentity();   // Set to Identity to make bottom row of Matrix 0,0,0,1
+    transform_eigen.block<3,3>(0,0) = R;
+    transform_eigen.col(3) = T;
+    return transform_eigen;
+  }
+
+ void PublishMergedPointCloudIncremental() {
     sensor_msgs::PointCloud2 merged_cloud;
     pcl::PointCloud<pcl::PointXYZ> merged_cloud_pcl;
 
@@ -108,8 +134,25 @@ private:
 
     geometry_msgs::TransformStamped tf;
     for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {
-      // what was point cloud time stamp?
+      pcl_ros::transformPointCloud(transform_poses.at(i),*point_cloud_ptrs.at(i), new_cloud);
+      pcl::fromROSMsg(new_cloud, new_cloud_pcl);
+      merged_cloud_pcl = merged_cloud_pcl + new_cloud_pcl;
+    }
 
+    pcl::toROSMsg(merged_cloud_pcl, merged_cloud);
+    merged_cloud.header.frame_id = "world";
+    point_cloud_pub_incremental.publish(merged_cloud);
+  }
+
+  void PublishMergedPointCloudQueryingBack() {
+    sensor_msgs::PointCloud2 merged_cloud;
+    pcl::PointCloud<pcl::PointXYZ> merged_cloud_pcl;
+
+    sensor_msgs::PointCloud2 new_cloud;
+    pcl::PointCloud<pcl::PointXYZ> new_cloud_pcl;
+
+    geometry_msgs::TransformStamped tf;
+    for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {
       try {
         tf = tf_buffer_.lookupTransform("world", depth_sensor_frame,
                                       point_cloud_ptrs.at(i)->header.stamp, ros::Duration(1/30.0));
@@ -117,7 +160,6 @@ private:
           ROS_ERROR("8 %s", ex.what());
         return;
       }
-
       Eigen::Quaternionf quat(tf.transform.rotation.w, tf.transform.rotation.x, tf.transform.rotation.y, tf.transform.rotation.z);
       Eigen::Matrix3f R = quat.toRotationMatrix();
       Eigen::Vector4f T = Eigen::Vector4f(tf.transform.translation.x,tf.transform.translation.y,tf.transform.translation.z, 1.0); 
@@ -125,7 +167,6 @@ private:
       transform_eigen.setIdentity();   // Set to Identity to make bottom row of Matrix 0,0,0,1
       transform_eigen.block<3,3>(0,0) = R;
       transform_eigen.col(3) = T;
-
       pcl_ros::transformPointCloud(transform_eigen,*point_cloud_ptrs.at(i), new_cloud);
       pcl::fromROSMsg(new_cloud, new_cloud_pcl);
       merged_cloud_pcl = merged_cloud_pcl + new_cloud_pcl;
@@ -133,7 +174,7 @@ private:
 
     pcl::toROSMsg(merged_cloud_pcl, merged_cloud);
     merged_cloud.header.frame_id = "world";
-    point_cloud_pub.publish(merged_cloud);
+    point_cloud_pub_querying_back.publish(merged_cloud);
   }
 
  void TransformToWorldFromPose(Eigen::Matrix4f transform_to_world, const sensor_msgs::PointCloud2ConstPtr msg, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_out){
@@ -141,8 +182,6 @@ private:
     msg_out.header.frame_id = "world";
 
     pcl_ros::transformPointCloud(transform_to_world, *msg, msg_out);
-
-    point_cloud_pub.publish(msg_out);
 
     pcl::PCLPointCloud2 cloud2;
     pcl_conversions::toPCL(msg_out, cloud2);
@@ -430,7 +469,8 @@ private:
 
 	ros::Publisher fov_pub;
   ros::Publisher poses_path_pub;
-  ros::Publisher point_cloud_pub;
+  ros::Publisher point_cloud_pub_incremental;
+  ros::Publisher point_cloud_pub_querying_back;
 
 	std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 	tf2_ros::Buffer tf_buffer_;
