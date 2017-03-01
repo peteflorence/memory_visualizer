@@ -200,6 +200,7 @@ private:
 
     geometry_msgs::TransformStamped tf;
     for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {
+      std::cout << "trying to find transform for time " << point_cloud_ptrs.at(i)->header.stamp << std::endl;
       try {
         tf = tf_buffer_.lookupTransform("world", depth_sensor_frame,
                                       point_cloud_ptrs.at(i)->header.stamp, ros::Duration(1/30.0));
