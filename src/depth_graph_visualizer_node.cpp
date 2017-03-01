@@ -119,10 +119,10 @@ private:
     // rotate(point_cloud_ptrs.begin(),point_cloud_ptrs.end()-1,point_cloud_ptrs.end()); // Shift vector so each move back 1
     // point_cloud_ptrs.at(0) = point_cloud_msg;
 
-    //PublishMergedPointCloudLastPoses();
-    //PublishMergedPointCloudQueryNow(); 
+    PublishMergedPointCloudLastPoses();
+    PublishMergedPointCloudQueryNow(); 
     PublishMergedPointCloudQueryingBack();
-    PublishMergedPointCloudSmoothed();
+    //PublishMergedPointCloudSmoothed();
 
     transform_poses_last_pose.clear();
     transform_poses_query_now.clear();
