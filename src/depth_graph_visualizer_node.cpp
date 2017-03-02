@@ -49,6 +49,8 @@ public:
     camera_info_sub = nh.subscribe("depth_camera_info", 1, &MemoryVisualizerNode::OnCameraInfo, this);
     depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
 
+
+
 		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(tf_buffer_);
 
     srand(time(NULL)); // initialize random seed
@@ -111,18 +113,22 @@ private:
     //ROS_INFO("GOT POINT CLOUD");
     size_t num_point_clouds = 90;
     if (point_cloud_ptrs.size() < num_point_clouds) {
-      transform_poses_last_pose.push_back(findTransform4f(last_pose)*GetRDFToBodyTransform());
-      transform_poses_query_now.push_back(FindTransformNow());
+      //transform_poses_last_pose.push_back(findTransform4f(last_pose)*GetRDFToBodyTransform());
+      //transform_poses_query_now.push_back(FindTransformNow());
+      //std::cout << "Point cloud timestamp is " << point_cloud_msg->header.stamp << std::endl;
+      //ros::Time time_now = ros::Time::now();
+      //std::cout << "Now is " << time_now << std::endl;
+      //std::cout << "Diff is " << time_now - point_cloud_msg->header.stamp << std::endl;
       point_cloud_ptrs.push_back(point_cloud_msg);
       return;
     }
     // rotate(point_cloud_ptrs.begin(),point_cloud_ptrs.end()-1,point_cloud_ptrs.end()); // Shift vector so each move back 1
     // point_cloud_ptrs.at(0) = point_cloud_msg;
 
-    PublishMergedPointCloudLastPoses();
-    PublishMergedPointCloudQueryNow(); 
+    //PublishMergedPointCloudLastPoses();
+    //PublishMergedPointCloudQueryNow(); 
     PublishMergedPointCloudQueryingBack();
-    //PublishMergedPointCloudSmoothed();
+    PublishMergedPointCloudSmoothed();
 
     transform_poses_last_pose.clear();
     transform_poses_query_now.clear();
@@ -358,6 +364,11 @@ private:
 
   size_t pose_ctr = 0;
   void OnPose( geometry_msgs::PoseStamped const& pose ) {
+    ros::Time time_now = ros::Time::now();
+    std::cout << "Pose time is " << pose.header.stamp << std::endl;
+    std::cout << "now is " << time_now << std::endl;
+    std::cout << "diff is " << time_now - pose.header.stamp <<std::endl;
+
     //std::cout << "got pose: " << pose_ctr << std::endl;
     pose_ctr++;
 
