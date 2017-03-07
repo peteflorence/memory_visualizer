@@ -27,28 +27,41 @@
 #include <stdlib.h>
 #include <chrono>
 
+#include <fstream>
 
 class MemoryVisualizerNode {
 public:
 
-	MemoryVisualizerNode() {
+  std::ofstream ofs;
+
+	MemoryVisualizerNode() : ofs("/home/locomotion/pose_uncertainty/test_0.txt", std::ofstream::out) {
 		// Subscribers
 		pose_sub = nh.subscribe("/pose", 100, &MemoryVisualizerNode::OnPose, this);
+    twist_sub = nh.subscribe("/twist", 100, &MemoryVisualizerNode::OnTwist, this);
     smoothed_path_sub = nh.subscribe("/samros/keyposes", 100, &MemoryVisualizerNode::OnSmoothedPath, this);
+    camera_info_sub = nh.subscribe("depth_camera_info", 1, &MemoryVisualizerNode::OnCameraInfo, this);
+    //depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
+    laser_sub = nh.subscribe("/laserscan_to_pointcloud/cloud2_out", 1, &MemoryVisualizerNode::OnLaser, this);
+    
 
+    fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
 
-  	    // Publishers
-		fov_pub = nh.advertise<visualization_msgs::Marker>("fov", 0);
-    poses_path_pub = nh.advertise<nav_msgs::Path>("poses_path", 0);
+    poses_path_pub = nh.advertise<nav_msgs::Path>("/poses_path", 0);
+    
+    pose_available_pub = nh.advertise<geometry_msgs::PoseStamped>("pose_available", 0);
+    poses_available_path_pub = nh.advertise<nav_msgs::Path>("poses_available_path", 0);
+
+    pose_forward_propagated_pub = nh.advertise<geometry_msgs::PoseStamped>("/pose_forward_propagated", 0);
+    poses_forward_propagated_path_pub = nh.advertise<nav_msgs::Path>("/poses_forward_propagated_path", 0);
+
+  	// Publishers
 
     point_cloud_pub_last_pose = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_last_pose", 0);
     point_cloud_pub_query_now = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_query_now", 0);
     point_cloud_pub_query_back = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_query_back", 0);
     point_cloud_pub_smoothed = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_smoothed", 0);
 
-    camera_info_sub = nh.subscribe("depth_camera_info", 1, &MemoryVisualizerNode::OnCameraInfo, this);
-    //depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
-    laser_sub = nh.subscribe("/laserscan_to_pointcloud/cloud2_out", 1, &MemoryVisualizerNode::OnLaser, this);
+
 
 
 
@@ -118,11 +131,69 @@ private:
     return transform;
   }
 
+  void SavePoseData() {
+
+    std::cout << "SAVING DATA" << std::endl;
+
+    // iterate over all smoothed poses
+    ofs << "NEW_SMOOTHED_PATH" << std::endl;
+
+    geometry_msgs::PoseStamped pose_smoothed;
+    for (size_t i = 0; i < last_smoothed_path.poses.size(); i++) {
+      pose_smoothed = last_smoothed_path.poses[i];
+      
+      ros::Time pose_smoothed_time = pose_smoothed.header.stamp;
+
+      geometry_msgs::PoseStamped pose_available = findPoseAtTime("pose_available_frame", pose_smoothed_time); // this is essentially condition 0
+      geometry_msgs::PoseStamped pose_forward_propagated = findPoseAtTime("pose_forward_propagated_frame", pose_smoothed_time); // this is essentially condition 1
+      
+      ofs << pose_smoothed_time << " ";
+      PrintPose(pose_smoothed);
+      PrintPose(pose_available);
+      PrintPose(pose_forward_propagated);
+
+    }
+
+  }
+
+  void PrintPose(geometry_msgs::PoseStamped const& pose) {
+    ofs << pose.pose.position.x << " ";
+    ofs << pose.pose.position.y << " ";
+    ofs << pose.pose.position.z << " ";
+    ofs << std::endl;
+  }
+
+
+  geometry_msgs::PoseStamped findPoseAtTime(std::string frame, ros::Time time_query) {
+    geometry_msgs::TransformStamped tf;
+    geometry_msgs::PoseStamped pose;
+    try {
+      tf = tf_buffer_.lookupTransform("world", frame,
+                                    time_query, ros::Duration(1/30.0));
+      } catch (tf2::TransformException &ex) {
+        ROS_ERROR("8 %s", ex.what());
+      return pose;
+    }
+    
+    pose.pose.position.x = tf.transform.translation.x;
+    pose.pose.position.y = tf.transform.translation.y;
+    pose.pose.position.z = tf.transform.translation.z;
+
+    pose.pose.orientation.x = tf.transform.rotation.x;
+    pose.pose.orientation.y = tf.transform.rotation.y;
+    pose.pose.orientation.z = tf.transform.rotation.z;
+    pose.pose.orientation.w = tf.transform.rotation.w;
+    pose.header.frame_id = "world";
+    pose.header.stamp = time_query;
+    return pose;
+  }
+
+
 
   size_t point_cloud_ctr = 0;
   void OnLaser(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
     //ROS_INFO("GOT POINT CLOUD");
-    size_t num_point_clouds = 200;
+    size_t num_point_clouds = 90;
     if (point_cloud_ptrs.size() < num_point_clouds) {
       //transform_poses_last_pose.push_back(findTransform4f(last_pose)*GetRDFToBodyTransform());
       //transform_poses_query_now.push_back(FindTransformNow());
@@ -135,6 +206,8 @@ private:
     }
     // rotate(point_cloud_ptrs.begin(),point_cloud_ptrs.end()-1,point_cloud_ptrs.end()); // Shift vector so each move back 1
     // point_cloud_ptrs.at(0) = point_cloud_msg;
+
+    SavePoseData();
 
     //PublishMergedPointCloudLastPoses();
     //PublishMergedPointCloudQueryNow(); 
@@ -217,7 +290,7 @@ private:
 
     geometry_msgs::TransformStamped tf;
     for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {
-      std::cout << "trying to find transform for time " << point_cloud_ptrs.at(i)->header.stamp << std::endl;
+      //std::cout << "trying to find transform for time " << point_cloud_ptrs.at(i)->header.stamp << std::endl;
       try {
         tf = tf_buffer_.lookupTransform("world", "laser",
                                       point_cloud_ptrs.at(i)->header.stamp, ros::Duration(1/30.0));
@@ -372,22 +445,67 @@ private:
 
   }
 
+  void PublishTransformFromPose(std::string frame, geometry_msgs::PoseStamped const& pose) {
+    static tf2_ros::TransformBroadcaster br;
+      geometry_msgs::TransformStamped transformStamped;
+  
+      transformStamped.header.stamp = pose.header.stamp;
+      transformStamped.header.frame_id = "world";
+      transformStamped.child_frame_id = frame;
+      transformStamped.transform.translation.x = pose.pose.position.x;
+      transformStamped.transform.translation.y = pose.pose.position.y;
+      transformStamped.transform.translation.z = pose.pose.position.z;
+
+      transformStamped.transform.rotation.x = pose.pose.orientation.x;
+      transformStamped.transform.rotation.y = pose.pose.orientation.y;
+      transformStamped.transform.rotation.z = pose.pose.orientation.z;
+      transformStamped.transform.rotation.w = pose.pose.orientation.w;
+
+      br.sendTransform(transformStamped);
+  }
+
+  void PublishPoseAvailable(geometry_msgs::PoseStamped const& pose) {
+    ros::Time time_now = ros::Time::now();
+    geometry_msgs::PoseStamped pose_now = pose;
+    pose_now.header.stamp = time_now;
+    pose_available_pub.publish(pose_now);
+
+    PublishTransformFromPose("pose_available_frame", pose_now);
+
+  }
+
+  void PublishForwardPropagatedPose(geometry_msgs::PoseStamped const& pose) {
+    ros::Time time_now = ros::Time::now();
+    double propagation_time = time_now.toSec() - pose.header.stamp.toSec();
+
+    geometry_msgs::PoseStamped propagated_pose = pose;
+    propagated_pose.header.stamp = time_now;
+
+    // Extrapolate pose positions
+    propagated_pose.pose.position.x = pose.pose.position.x + last_twist.twist.linear.x * propagation_time;  
+    propagated_pose.pose.position.y = pose.pose.position.y + last_twist.twist.linear.y * propagation_time;  
+    propagated_pose.pose.position.z = pose.pose.position.z + last_twist.twist.linear.z * propagation_time;  
+
+    pose_forward_propagated_pub.publish(propagated_pose);
+
+    PublishTransformFromPose("pose_forward_propagated_frame", propagated_pose);
+
+  }
+
+  geometry_msgs::TwistStamped last_twist;
+  void OnTwist( geometry_msgs::TwistStamped const& twist ) {
+    last_twist = twist;
+  }
 
   size_t pose_ctr = 0;
   void OnPose( geometry_msgs::PoseStamped const& pose ) {
-    ros::Time time_now = ros::Time::now();
-    std::cout << "Pose time is " << pose.header.stamp << std::endl;
-    std::cout << "now is " << time_now << std::endl;
-    std::cout << "diff is " << time_now - pose.header.stamp <<std::endl;
-
-    //std::cout << "got pose: " << pose_ctr << std::endl;
     pose_ctr++;
 
     if (!initiated) {
       last_pose = pose;
       Eigen::Matrix4d transform_identity = Eigen::Matrix4d::Identity();
       transform_identity(0,3) = -1.0;
-      std::cout << transform_identity << std::endl;
+      //std::cout << transform_identity << std::endl;
       for (int i = 0; i < 50; i++) {
         odometries.push_back(transform_identity);
         //odometries_with_noise.push_back(transform_identity);
@@ -416,11 +534,14 @@ private:
 
     AddToPosesPath(pose);
 
+    PublishPoseAvailable(pose);
+    PublishForwardPropagatedPose(pose);
+
   }
 
   nav_msgs::Path last_smoothed_path;
   void OnSmoothedPath( nav_msgs::Path const& path_msg ) {
-    ROS_INFO("GOT SMOOTHED PATH");
+    //ROS_INFO("GOT SMOOTHED PATH");
     last_smoothed_path = path_msg;
   }
 
@@ -641,6 +762,7 @@ private:
 	std::string drawing_frame = "world";
 
 	ros::Subscriber pose_sub;
+  ros::Subscriber twist_sub;
   ros::Subscriber smoothed_path_sub;
   ros::Subscriber camera_info_sub;
   ros::Subscriber depth_image_sub;
@@ -649,6 +771,14 @@ private:
 
 	ros::Publisher fov_pub;
   ros::Publisher poses_path_pub;
+
+  ros::Publisher pose_available_pub;
+  ros::Publisher poses_available_path_pub;
+
+  ros::Publisher pose_forward_propagated_pub;
+  ros::Publisher poses_forward_propagated_path_pub;
+
+
   ros::Publisher point_cloud_pub_last_pose;
   ros::Publisher point_cloud_pub_query_now;
   ros::Publisher point_cloud_pub_query_back;
