@@ -47,7 +47,8 @@ public:
     point_cloud_pub_smoothed = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_merged_smoothed", 0);
 
     camera_info_sub = nh.subscribe("depth_camera_info", 1, &MemoryVisualizerNode::OnCameraInfo, this);
-    depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
+    //depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &MemoryVisualizerNode::OnDepthImage, this);
+    laser_sub = nh.subscribe("/laserscan_to_pointcloud/cloud2_out", 1, &MemoryVisualizerNode::OnLaser, this);
 
 
 
@@ -86,6 +87,8 @@ private:
   geometry_msgs::PoseStamped last_pose;
   Matrix3 BodyToRDF;
   Matrix3 BodyToRDF_inverse;
+  Matrix3 BodyToLaser;
+  Matrix3 BodyToLaser_inverse;
   Eigen::Matrix4d transform_body_to_world; // better if not class variable
 
 
@@ -108,10 +111,18 @@ private:
     return transform;
   }
 
+  Eigen::Matrix4f GetLaserToBodyTransform() {
+    Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+    Eigen::Matrix3f R = BodyToLaser_inverse.cast <float> ();
+    transform.block<3,3>(0,0) = R;
+    return transform;
+  }
+
+
   size_t point_cloud_ctr = 0;
-  void OnDepthImage(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
+  void OnLaser(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
     //ROS_INFO("GOT POINT CLOUD");
-    size_t num_point_clouds = 90;
+    size_t num_point_clouds = 200;
     if (point_cloud_ptrs.size() < num_point_clouds) {
       //transform_poses_last_pose.push_back(findTransform4f(last_pose)*GetRDFToBodyTransform());
       //transform_poses_query_now.push_back(FindTransformNow());
@@ -208,7 +219,7 @@ private:
     for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {
       std::cout << "trying to find transform for time " << point_cloud_ptrs.at(i)->header.stamp << std::endl;
       try {
-        tf = tf_buffer_.lookupTransform("world", depth_sensor_frame,
+        tf = tf_buffer_.lookupTransform("world", "laser",
                                       point_cloud_ptrs.at(i)->header.stamp, ros::Duration(1/30.0));
         } catch (tf2::TransformException &ex) {
           ROS_ERROR("8 %s", ex.what());
@@ -245,7 +256,7 @@ private:
       bool can_interpolate;
       findTransformFromSmoothedPath(point_cloud_ptrs.at(i)->header.stamp, transform_eigen, can_interpolate);
       if (can_interpolate) {
-        pcl_ros::transformPointCloud(transform_eigen*GetRDFToBodyTransform(),*point_cloud_ptrs.at(i), new_cloud);
+        pcl_ros::transformPointCloud(transform_eigen*GetLaserToBodyTransform(),*point_cloud_ptrs.at(i), new_cloud);
         pcl::fromROSMsg(new_cloud, new_cloud_pcl);
         merged_cloud_pcl = merged_cloud_pcl + new_cloud_pcl;
      }
@@ -389,6 +400,9 @@ private:
     if (counter >= 10) {
       BodyToRDF = GetBodyToRDFRotationMatrix(); // could do only once later -- being safe for now
       BodyToRDF_inverse = BodyToRDF.inverse();
+
+      BodyToLaser = GetBodyToLaserRotationMatrix();
+      BodyToLaser_inverse = BodyToLaser.inverse();
 
       counter = 0;
       //ROS_INFO("GOT POSE");
@@ -596,6 +610,20 @@ private:
       return R;
   }
 
+  Matrix3 GetBodyToLaserRotationMatrix() {
+    geometry_msgs::TransformStamped tf;
+      try {
+        tf = tf_buffer_.lookupTransform("laser", "body", 
+                                    ros::Time(0), ros::Duration(1/30.0));
+      } catch (tf2::TransformException &ex) {
+        ROS_ERROR("%s", ex.what());
+        return Matrix3();
+      }
+      Eigen::Quaternion<Scalar> quat(tf.transform.rotation.w, tf.transform.rotation.x, tf.transform.rotation.y, tf.transform.rotation.z);
+      Matrix3 R = quat.toRotationMatrix();
+      return R;
+  }
+
 	geometry_msgs::PoseStamped PoseFromVector3(Vector3 const& position, std::string const& frame) {
 		geometry_msgs::PoseStamped pose;
 		pose.pose.position.x = position(0);
@@ -616,6 +644,8 @@ private:
   ros::Subscriber smoothed_path_sub;
   ros::Subscriber camera_info_sub;
   ros::Subscriber depth_image_sub;
+  ros::Subscriber laser_sub;
+
 
 	ros::Publisher fov_pub;
   ros::Publisher poses_path_pub;
