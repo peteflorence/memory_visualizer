@@ -1,0 +1,20 @@
+<launch>
+
+	<arg name="use_xtion" default="false" /> <!-- otherwise use r200 -->
+
+	 <arg name="r200_depth_camera_info_topic" default="/flight/r200/depth_red/camera_info" />
+	 <arg name="r200_depth_camera_pointcloud_topic" default="/flight/r200/points_xyz" />
+
+  	<arg name="xtion_depth_camera_info_topic" default="/flight/xtion_depth/camera_info" />
+  	<arg name="xtion_depth_camera_pointcloud_topic" default="/flight/xtion_depth/points" />
+
+    <node pkg="memory_visualizer" type="depth_history_latency_evaluator_node" name="depth_history_latency_evaluator_node" output="screen">
+
+    <remap from="/depth_camera_info" to="$(arg r200_depth_camera_info_topic)" unless="$(arg use_xtion)"/>
+    <remap from="/depth_camera_pointcloud" to="$(arg r200_depth_camera_pointcloud_topic)" unless="$(arg use_xtion)"/>
+
+    <remap from="/depth_camera_info" to="$(arg xtion_depth_camera_info_topic)" if="$(arg use_xtion)"/>
+    <remap from="/depth_camera_pointcloud" to="$(arg xtion_depth_camera_pointcloud_topic)" if="$(arg use_xtion)"/>
+  </node>
+   
+</launch>

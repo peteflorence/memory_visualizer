@@ -35,13 +35,12 @@ public:
 		// Subscribers
 		pose_sub = nh.subscribe("/pose", 100, &DepthHistoryLatencyEvaluatorNode::OnPose, this);
     smoothed_path_sub = nh.subscribe("/samros/keyposes", 100, &DepthHistoryLatencyEvaluatorNode::OnSmoothedPath, this);
-
     camera_info_sub = nh.subscribe("depth_camera_info", 1, &DepthHistoryLatencyEvaluatorNode::OnCameraInfo, this);
     depth_image_sub = nh.subscribe("depth_camera_pointcloud", 100, &DepthHistoryLatencyEvaluatorNode::OnDepthImage, this);
 
-		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(tf_buffer_);
+    point_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("point_cloud_after_smoothed", 100);
 
-    srand(time(NULL)); // initialize random seed
+		tf_listener_ = std::make_shared<tf2_ros::TransformListener>(tf_buffer_);
 
     for(;;){
         try {
@@ -51,22 +50,14 @@ public:
         } catch (tf2::TransformException &ex) {
           continue;
         }
-
         break;
     }
-
-    std::cout << "initiated" << std::endl;
 	}
 
 private:
 
   std::vector<geometry_msgs::PoseStamped> poses_path;
   std::vector<sensor_msgs::PointCloud2ConstPtr> point_cloud_ptrs;
-
-  Matrix3 BodyToRDF;
-  Matrix3 BodyToRDF_inverse;
-  Eigen::Matrix4d transform_body_to_world; // better if not class variable
-
 
   bool got_camera_info = false;
   std::string depth_sensor_frame = "depth_sensor";
@@ -78,21 +69,21 @@ private:
     depth_sensor_frame = msg.header.frame_id;
   }
 
-  Eigen::Matrix4f GetRDFToBodyTransform() {
-    Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-    Eigen::Matrix3f R = BodyToRDF_inverse.cast <float> ();
-    transform.block<3,3>(0,0) = R;
-    return transform;
-  }
-
   size_t point_cloud_ctr = 0;
   void OnDepthImage(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
-    //ROS_INFO("GOT POINT CLOUD");
+    ROS_INFO("GOT POINT CLOUD");
     size_t num_point_clouds = 90;
     if (point_cloud_ptrs.size() < num_point_clouds) {
       point_cloud_ptrs.push_back(point_cloud_msg);
       return;
     }
+
+    for (size_t i = 0; i < num_point_clouds; i++) {
+      point_cloud_pub.publish(*point_cloud_ptrs.at(i));
+    }
+
+    // initialize test of building local history
+
     point_cloud_ctr++;
   }
 
@@ -182,36 +173,9 @@ private:
     last_smoothed_path = path_msg;
   }
 
-
-  Matrix3 GetBodyToRDFRotationMatrix() {
-    geometry_msgs::TransformStamped tf;
-      try {
-        tf = tf_buffer_.lookupTransform(depth_sensor_frame, "body", 
-                                    ros::Time(0), ros::Duration(1/30.0));
-      } catch (tf2::TransformException &ex) {
-        ROS_ERROR("%s", ex.what());
-        return Matrix3();
-      }
-      Eigen::Quaternion<Scalar> quat(tf.transform.rotation.w, tf.transform.rotation.x, tf.transform.rotation.y, tf.transform.rotation.z);
-      Matrix3 R = quat.toRotationMatrix();
-      return R;
-  }
-
-	geometry_msgs::PoseStamped PoseFromVector3(Vector3 const& position, std::string const& frame) {
-		geometry_msgs::PoseStamped pose;
-		pose.pose.position.x = position(0);
-		pose.pose.position.y = position(1);
-		pose.pose.position.z = position(2);
-		pose.header.frame_id = frame;
-		pose.header.stamp = ros::Time::now();
-		return pose;
-	}
-
-	Vector3 VectorFromPose(geometry_msgs::PoseStamped const& pose) {
-		return Vector3(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
-	}
-
 	std::string drawing_frame = "world";
+
+  ros::Publisher point_cloud_pub;
 
 	ros::Subscriber pose_sub;
   ros::Subscriber smoothed_path_sub;
