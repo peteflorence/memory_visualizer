@@ -13,6 +13,9 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/filters/voxel_grid.h>
+
 #include <pcl_ros/point_cloud.h>
 #include "pcl_ros/transforms.h"
 #include "pcl_ros/impl/transforms.hpp"
@@ -80,16 +83,44 @@ private:
       return;
     }
 
-    for (size_t i = 0; i < num_point_clouds; i++) {
-      point_cloud_pub.publish(*point_cloud_ptrs.at(i));
-      std::cout << "Published point cloud " << i << std::endl;
-    }
+    // for (size_t i = 0; i < num_point_clouds; i++) {
+    //   point_cloud_pub.publish(*point_cloud_ptrs.at(i));
+    //   std::cout << "Published point cloud " << i << std::endl;
+    // }
+    VoxelGrid();
     point_cloud_ptrs.clear();
     //ros::service::call("/octomap_server/reset");
 
     // initialize test of building local history
 
     point_cloud_ctr++;
+  }
+
+  void VoxelGrid() {
+
+    pcl::PCLPointCloud2::Ptr cloud_in (new pcl::PCLPointCloud2 ());
+    pcl_conversions::toPCL(*point_cloud_ptrs.at(0),*cloud_in);
+    //pcl::PCLPointCloud2::Ptr pcl_pc2_ptr = boost::make_shared(pcl_pc2);
+
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    // pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
+
+    std::cout << "Filtering" << std::endl;
+
+    ros::Time time_before = ros::Time::now();
+
+    
+    pcl::PCLPointCloud2::Ptr cloud_filtered (new pcl::PCLPointCloud2 ());
+    // Create the filtering object
+    pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
+    sor.setInputCloud(cloud_in);
+    sor.setLeafSize (0.01f, 0.01f, 0.01f);
+    sor.filter (*cloud_filtered);
+
+    ros::Time time_after = ros::Time::now();
+
+    std::cout << "took " << time_after - time_before << std::endl;
+
   }
 
 
