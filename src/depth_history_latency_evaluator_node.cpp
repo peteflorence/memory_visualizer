@@ -76,7 +76,7 @@ private:
 
   size_t point_cloud_ctr = 0;
   void OnDepthImage(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
-    ROS_INFO("GOT POINT CLOUD");
+    //ROS_INFO("GOT POINT CLOUD");
     size_t num_point_clouds = 90;
     if (point_cloud_ptrs.size() < num_point_clouds) {
       point_cloud_ptrs.push_back(point_cloud_msg);
@@ -98,24 +98,33 @@ private:
 
   void VoxelGrid() {
 
+    std::cout << "Merging " << point_cloud_ptrs.size() << " point clouds " << std::endl;
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr merged_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PCLPointCloud2::Ptr cloud_in (new pcl::PCLPointCloud2 ());
-    pcl_conversions::toPCL(*point_cloud_ptrs.at(0),*cloud_in);
-    //pcl::PCLPointCloud2::Ptr pcl_pc2_ptr = boost::make_shared(pcl_pc2);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    // pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
+    for (size_t i = 0; i < point_cloud_ptrs.size(); i++) {  
+      pcl_conversions::toPCL(*point_cloud_ptrs.at(0),*cloud_in);
+      
+      pcl::fromPCLPointCloud2(*cloud_in,*temp_cloud);
+      *merged_cloud = *merged_cloud + *temp_cloud;
+    }
+    
 
-    std::cout << "Filtering" << std::endl;
+    std::cout << "Merged point cloud has " << merged_cloud->height * merged_cloud->width << " points" << std::endl;
 
     ros::Time time_before = ros::Time::now();
 
-    
-    pcl::PCLPointCloud2::Ptr cloud_filtered (new pcl::PCLPointCloud2 ());
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     // Create the filtering object
-    pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
-    sor.setInputCloud(cloud_in);
+    pcl::VoxelGrid<pcl::PointXYZ> sor;
+    sor.setInputCloud(merged_cloud);
     sor.setLeafSize (0.01f, 0.01f, 0.01f);
     sor.filter (*cloud_filtered);
+
+    std::cout << "Filtered point cloud has " << cloud_filtered->height * cloud_filtered->width << " points" << std::endl;
 
     ros::Time time_after = ros::Time::now();
 
