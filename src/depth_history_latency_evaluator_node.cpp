@@ -27,6 +27,8 @@
 #include <stdlib.h>
 #include <chrono>
 
+//#include <octomap_server/octomap_server.h>
+
 
 class DepthHistoryLatencyEvaluatorNode {
 public:
@@ -80,7 +82,10 @@ private:
 
     for (size_t i = 0; i < num_point_clouds; i++) {
       point_cloud_pub.publish(*point_cloud_ptrs.at(i));
+      std::cout << "Published point cloud " << i << std::endl;
     }
+    point_cloud_ptrs.clear();
+    //ros::service::call("/octomap_server/reset");
 
     // initialize test of building local history
 
