@@ -98,7 +98,9 @@ private:
 
   void VoxelGrid() {
 
-    std::cout << "Merging " << point_cloud_ptrs.size() << " point clouds " << std::endl;
+    std::cout << "Converting and merging " << point_cloud_ptrs.size() << " point clouds " << std::endl;
+
+    ros::Time time_before_merging = ros::Time::now();
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr merged_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PCLPointCloud2::Ptr cloud_in (new pcl::PCLPointCloud2 ());
@@ -110,11 +112,12 @@ private:
       pcl::fromPCLPointCloud2(*cloud_in,*temp_cloud);
       *merged_cloud = *merged_cloud + *temp_cloud;
     }
-    
 
+    ros::Time time_after_merging = ros::Time::now();
+    std::cout << "Converting and merging took " << time_after_merging - time_before_merging << std::endl;
     std::cout << "Merged point cloud has " << merged_cloud->height * merged_cloud->width << " points" << std::endl;
 
-    ros::Time time_before = ros::Time::now();
+    ros::Time time_before_filtering = ros::Time::now();
 
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
@@ -128,7 +131,7 @@ private:
 
     ros::Time time_after = ros::Time::now();
 
-    std::cout << "took " << time_after - time_before << std::endl;
+    std::cout << "took " << time_after - time_before_filtering << std::endl;
 
   }
 
