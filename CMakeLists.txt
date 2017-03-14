@@ -51,6 +51,8 @@ set(orocos_kdl_LIBRARIES ${OROCOS_KDL})
 
 add_library( memory_visualizer_lib src/depth_pose.cpp src/fov_evaluator.cpp)
 
+add_library( nanomap_lib src/nanomap.cpp)
+
 add_executable( memory_visualizer_node src/memory_visualizer_node.cpp )
 target_link_libraries( memory_visualizer_node memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)
 
@@ -59,5 +61,5 @@ add_executable( depth_history_latency_evaluator_node src/depth_history_latency_e
 
 add_library( transform_utils src/transform_utils)
 target_link_libraries( depth_graph_visualizer_node transform_utils memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)
-target_link_libraries( depth_history_latency_evaluator_node transform_utils memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)
+target_link_libraries( depth_history_latency_evaluator_node nanomap_lib transform_utils memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)
 

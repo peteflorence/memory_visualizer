@@ -30,13 +30,17 @@
 #include <stdlib.h>
 #include <chrono>
 
+#include "nanomap.h"
+
 //#include <octomap_server/octomap_server.h>
 
 
 class DepthHistoryLatencyEvaluatorNode {
 public:
 
-	DepthHistoryLatencyEvaluatorNode() {
+  std::ofstream ofs;
+
+	DepthHistoryLatencyEvaluatorNode() : ofs("/home/locomotion/test_nanomap.txt", std::ofstream::out) {
 		// Subscribers
 		pose_sub = nh.subscribe("/pose", 100, &DepthHistoryLatencyEvaluatorNode::OnPose, this);
     smoothed_path_sub = nh.subscribe("/samros/keyposes", 100, &DepthHistoryLatencyEvaluatorNode::OnSmoothedPath, this);
@@ -63,6 +67,7 @@ private:
 
   std::vector<geometry_msgs::PoseStamped> poses_path;
   std::vector<sensor_msgs::PointCloud2ConstPtr> point_cloud_ptrs;
+  NanoMap nanomap;
 
   bool got_camera_info = false;
   std::string depth_sensor_frame = "depth_sensor";
@@ -76,19 +81,62 @@ private:
 
   size_t point_cloud_ctr = 0;
   void OnDepthImage(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg) {
-    //ROS_INFO("GOT POINT CLOUD");
-    size_t num_point_clouds = 90;
-    if (point_cloud_ptrs.size() < num_point_clouds) {
-      point_cloud_ptrs.push_back(point_cloud_msg);
-      return;
+    ROS_INFO("GOT POINT CLOUD");
+
+    pcl::PCLPointCloud2::Ptr cloud_in (new pcl::PCLPointCloud2 ());
+    pcl::PointCloud<pcl::PointXYZ>::Ptr xyz_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+    pcl_conversions::toPCL(*point_cloud_msg,*cloud_in);
+    pcl::fromPCLPointCloud2(*cloud_in,*xyz_cloud);
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    nanomap.AddToMergedKDTree(xyz_cloud);
+
+    auto t2 = std::chrono::high_resolution_clock::now();
+    
+    nanomap.BuildNewKDTree(xyz_cloud);
+
+    auto t3 = std::chrono::high_resolution_clock::now();
+
+
+    size_t num_queries = 1000;
+    auto t4 = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < num_queries; i ++) {
+        nanomap.FindNearestPointsMerged(Vector3(10,5,1));
     }
+    auto t5 = std::chrono::high_resolution_clock::now();
+
+    auto t6 = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < num_queries; i ++) {
+        nanomap.FindNearestPointsNew(Vector3(10,5,1));
+    }
+    auto t7 = std::chrono::high_resolution_clock::now();
+
+
+
+    ofs << point_cloud_ctr 
+           << " " << std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count()
+           << " " << std::chrono::duration_cast<std::chrono::nanoseconds>(t3-t2).count() 
+           << " " << std::chrono::duration_cast<std::chrono::nanoseconds>(t5-t4).count() 
+           << " " << std::chrono::duration_cast<std::chrono::nanoseconds>(t7-t6).count() 
+           << std::endl;
+
+    point_cloud_ctr++;
+    
+
+    // size_t num_point_clouds = 90;
+    // if (point_cloud_ptrs.size() < num_point_clouds) {
+    //   point_cloud_ptrs.push_back(point_cloud_msg);
+    //   return;
+    // }
 
     // for (size_t i = 0; i < num_point_clouds; i++) {
     //   point_cloud_pub.publish(*point_cloud_ptrs.at(i));
     //   std::cout << "Published point cloud " << i << std::endl;
     // }
-    VoxelGrid();
-    point_cloud_ptrs.clear();
+    //VoxelGrid();
+    //point_cloud_ptrs.clear();
     //ros::service::call("/octomap_server/reset");
 
     // initialize test of building local history
