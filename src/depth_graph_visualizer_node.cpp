@@ -34,7 +34,7 @@ public:
 
   std::ofstream ofs;
 
-	MemoryVisualizerNode() : ofs("/home/locomotion/pose_uncertainty/test_0.txt", std::ofstream::out) {
+	MemoryVisualizerNode() : ofs("/home/locomotion/latency_evaluations/pose_uncertainty_0.txt", std::ofstream::out) {
 		// Subscribers
 		pose_sub = nh.subscribe("/pose", 100, &MemoryVisualizerNode::OnPose, this);
     twist_sub = nh.subscribe("/twist", 100, &MemoryVisualizerNode::OnTwist, this);
@@ -146,13 +146,16 @@ private:
 
       geometry_msgs::PoseStamped pose_available = findPoseAtTime("pose_available_frame", pose_smoothed_time); // this is essentially condition 0
       geometry_msgs::PoseStamped pose_forward_propagated = findPoseAtTime("pose_forward_propagated_frame", pose_smoothed_time); // this is essentially condition 1
+      geometry_msgs::PoseStamped pose = findPoseAtTime("body", pose_smoothed_time); // this is essentially condition 3
       
       ofs << pose_smoothed_time << " ";
       PrintPose(pose_smoothed);
       PrintPose(pose_available);
       PrintPose(pose_forward_propagated);
-
+      PrintPose(pose);
+      ofs << std::endl;
     }
+
 
   }
 
@@ -160,7 +163,6 @@ private:
     ofs << pose.pose.position.x << " ";
     ofs << pose.pose.position.y << " ";
     ofs << pose.pose.position.z << " ";
-    ofs << std::endl;
   }
 
 
