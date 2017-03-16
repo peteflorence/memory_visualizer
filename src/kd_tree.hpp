@@ -64,6 +64,10 @@ public:
 		Initialize(xyz_cloud_new, false);
 	}
 
+	void Clear() {
+		cloud.pts.clear();
+	}
+
 	void Initialize(pcl::PointCloud<pcl::PointXYZ>::Ptr const& xyz_cloud_new, bool clear) {
 		using namespace std;
 		using namespace nanoflann;

@@ -1,4 +1,4 @@
-#include "nanomap.h"
+#include "nanomap.hpp"
 
 #define num_nearest_neighbors 1
 
@@ -14,17 +14,21 @@ void NanoMap::setCameraInfo(double bin, double width, double height, Matrix3 K_c
 }
 
 void NanoMap::BuildNewKDTree(pcl::PointCloud<pcl::PointXYZ>::Ptr const& cloud_new) {
-  latest_depth_image.organized_cloud_ptr = cloud_new;
-  latest_depth_image.kd_tree.InitializeNew(cloud_new);
+  latest_depth_pose.organized_cloud_ptr = cloud_new;
+  latest_depth_pose.kd_tree.InitializeNew(cloud_new);
 }
 
 std::vector<pcl::PointXYZ> NanoMap::FindNearestPointsNew(Vector3 const& robot_position) {
-  latest_depth_image.kd_tree.SearchForNearest<num_nearest_neighbors>(robot_position[0], robot_position[1], robot_position[2]);
-  return latest_depth_image.kd_tree.closest_pts;
+  latest_depth_pose.kd_tree.SearchForNearest<num_nearest_neighbors>(robot_position[0], robot_position[1], robot_position[2]);
+  return latest_depth_pose.kd_tree.closest_pts;
 }
 
 void NanoMap::AddToMergedKDTree(pcl::PointCloud<pcl::PointXYZ>::Ptr const& cloud_new) {
-  merged_depth_images.kd_tree.AddToKDTree(cloud_new);
+  merged_kd_tree.AddToKDTree(cloud_new);
+}
+
+void NanoMap::ClearMergedKDTree() {
+  merged_kd_tree.Clear();
 }
 
 std::vector<pcl::PointXYZ> NanoMap::FindNearestPointsMerged(Vector3 const& robot_position) {
