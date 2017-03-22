@@ -18,38 +18,35 @@ typedef Eigen::Matrix<Scalar, 4, 4> Matrix4;
 class NanoMap {
 public:
 
+  // methods for handling organized point clouds (nanomap_ros can provide conversion from depth image to organized point clouds)
   void setCameraInfo(double bin, double width, double height, Matrix3 K_camera_info);
-
   void BuildNewKDTree(pcl::PointCloud<pcl::PointXYZ>::Ptr const& cloud_new);
-  std::vector<pcl::PointXYZ> FindNearestPointsNew(Vector3 const& robot_position);
 
   void AddToMergedKDTree(pcl::PointCloud<pcl::PointXYZ>::Ptr const& cloud_new);
   void ClearMergedKDTree();
-  std::vector<pcl::PointXYZ> FindNearestPointsMerged(Vector3 const& robot_position);
 
-  void UpdatePose(size_t id, Matrix4 pose, Vector3 pose_axis_aligned_linear_covariance);
+  // methods for handling pose transforms
+  void updateTransform(size_t depth_image_from, size_t depth_image_to, Matrix4 transform, Vector3 axis_aligned_linear_covariance);
 
-  // bool IsBehind(Vector3 robot_position);
-  // bool IsOutsideDeadBand(Vector3 robot_position);
-  // double IsOutsideFOV(Vector3 robot_position);
-  // double AddOutsideFOVPenalty(Vector3 robot_position, double probability_of_collision);
-  
+  // methods for handling approximate k-nearest-neighbor queries
+  // k (num_nearest_neighbors) is #defined in nanomap.cpp
+  std::vector<pcl::PointXYZ> FindNearestPointsReverseSearch(Vector3 const& robot_position, Vector3 bounding_box);
+  std::vector<pcl::PointXYZ> FindNearestPointsMerged(Vector3 const& robot_position, Vector3 bounding_box);
 
 private:
 
-  Matrix4 current_pose;
-  DepthPose latest_depth_pose;
-
-  struct DepthPose {
-    size_t id;          // unique id, can be used to update pose information, must be monotonically ascending with time
-    uint32_t time_sec;  // time stamp can also be used to update pose information
-    uint32_t time_nsec;
-
-    Matrix4 pose;
-    Vector3 pose_axis_aligned_linear_covariance;
-
+  struct DepthImage {
+    size_t id;   // unique id, assigned to be monotonically increasing with time
     pcl::PointCloud<pcl::PointXYZ>::Ptr organized_cloud_ptr;
     KDTree<double> kd_tree;
+  };
+
+  struct PoseTransform {
+    size_t depth_image_from;
+    size_t depth_image_to;
+
+    Matrix4 transform;
+    Vector3 axis_aligned_linear_covariance;
   };
 
   KDTree<double> merged_kd_tree;
