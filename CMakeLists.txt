@@ -51,7 +51,7 @@ set(orocos_kdl_LIBRARIES ${OROCOS_KDL})
 
 add_library( memory_visualizer_lib src/depth_pose.cpp src/fov_evaluator.cpp)
 
-add_library( nanomap_lib src/nanomap.cpp)
+add_library( nanomap_lib src/nanomap.cc)
 
 add_executable( memory_visualizer_node src/memory_visualizer_node.cpp )
 target_link_libraries( memory_visualizer_node memory_visualizer_lib ${catkin_LIBRARIES} orocos-kdl)

@@ -1,5 +1,5 @@
 #include <Eigen/Dense>
-#include "kd_tree.hpp"
+#include "kd_tree.h"
 #include "nanoflann.hpp"
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -13,27 +13,27 @@ typedef Eigen::Matrix<Scalar, 4, 4> Matrix4;
 
 #include <math.h>
 #include <chrono>
-#include <algorithm> 
+#include <algorithm>
 
 class NanoMap {
-public:
+ public:
 
   // methods for handling organized point clouds (nanomap_ros can provide conversion from depth image to organized point clouds)
-  void setCameraInfo(double bin, double width, double height, Matrix3 K_camera_info);
+  void SetCameraInfo(double bin, double width, double height, Matrix3 K_camera_info);
   void BuildNewKDTree(pcl::PointCloud<pcl::PointXYZ>::Ptr const& cloud_new);
 
   void AddToMergedKDTree(pcl::PointCloud<pcl::PointXYZ>::Ptr const& cloud_new);
   void ClearMergedKDTree();
 
   // methods for handling pose transforms
-  void updateTransform(size_t depth_image_from, size_t depth_image_to, Matrix4 transform, Vector3 axis_aligned_linear_covariance);
+  void UpdateTransform(size_t depth_image_from, size_t depth_image_to, Matrix4 transform, Vector3 axis_aligned_linear_covariance);
 
   // methods for handling approximate k-nearest-neighbor queries
   // k (num_nearest_neighbors) is #defined in nanomap.cpp
   std::vector<pcl::PointXYZ> FindNearestPointsReverseSearch(Vector3 const& robot_position, Vector3 bounding_box);
   std::vector<pcl::PointXYZ> FindNearestPointsMerged(Vector3 const& robot_position, Vector3 bounding_box);
 
-private:
+ private:
 
   struct DepthImage {
     size_t id;   // unique id, assigned to be monotonically increasing with time
@@ -48,6 +48,18 @@ private:
     Matrix4 transform;
     Vector3 axis_aligned_linear_covariance;
   };
+
+  struct TransformDepthPair {
+    PoseTransform incremental_transform_to_previous_depth_image;
+    DepthImage previous_depth_image;
+  };
+
+  struct DepthPoseChain {
+    std::list<TransformDepthPair> depth_pose_chain;
+    size_t N;
+  };
+
+  std::list<DepthImage> depth_image_queue;
 
   KDTree<double> merged_kd_tree;
 

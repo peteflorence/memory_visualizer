@@ -103,13 +103,13 @@ private:
     size_t num_queries = 1000;
     auto t4 = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < num_queries; i ++) {
-        nanomap.FindNearestPointsMerged(Vector3(10,5,1));
+        //nanomap.FindNearestPointsMerged(Vector3(10,5,1));
     }
     auto t5 = std::chrono::high_resolution_clock::now();
 
     auto t6 = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < num_queries; i ++) {
-        nanomap.FindNearestPointsNew(Vector3(10,5,1));
+        //nanomap.FindNearestPointsNew(Vector3(10,5,1));
     }
     auto t7 = std::chrono::high_resolution_clock::now();
 
