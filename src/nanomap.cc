@@ -9,7 +9,7 @@ void NanoMap::SetCameraInfo(double bin, double width, double height, Matrix3 K_c
   num_y_pixels = height / binning;
   K = K_camera_info;
   K /= binning;
-  K(2,2) = 1.0;
+  K(2, 2) = 1.0;
   return;
 }
 

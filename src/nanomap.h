@@ -1,6 +1,7 @@
 #include <Eigen/Dense>
 #include "kd_tree.h"
 #include "nanoflann.hpp"
+#include "circular_buffer.h"
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -35,7 +36,7 @@ class NanoMap {
 
  private:
 
-  struct DepthImage {
+  struct PointCloudData {
     size_t id;   // unique id, assigned to be monotonically increasing with time
     pcl::PointCloud<pcl::PointXYZ>::Ptr organized_cloud_ptr;
     KDTree<double> kd_tree;
@@ -49,9 +50,9 @@ class NanoMap {
     Vector3 axis_aligned_linear_covariance;
   };
 
-  struct TransformDepthPair {
-    PoseTransform incremental_transform_to_previous_depth_image;
-    DepthImage previous_depth_image;
+  struct TransformPointCloudPair {
+    PoseTransform incremental_transform_to_previous_point_cloud;
+    DepthImage previous_point_cloud;
   };
 
   struct DepthPoseChain {
@@ -59,7 +60,7 @@ class NanoMap {
     size_t N;
   };
 
-  std::list<DepthImage> depth_image_queue;
+  std::deque<DepthImage> depth_image_deque;
 
   KDTree<double> merged_kd_tree;
 
