@@ -2,11 +2,9 @@
 
 #include "gtest/gtest.h"
 
-#include "depthest/utils/circular_buffer.h"
+#include "circular_buffer.h"
 
-namespace depthest {
-
-namespace utils {
+namespace nanomap {
 
 /**
  * @brief Test setting up the buffer.
@@ -124,6 +122,4 @@ TEST(CircularBufferTest, PopFrontTest) {
   return;
 }
 
-}  // namespace utils
-
-}  // namespace depthest
+}  // namespace nanomap

@@ -1,16 +1,11 @@
 #include <Eigen/Dense>
-#include "kd_tree.h"
-#include "nanoflann.hpp"
-#include "circular_buffer.h"
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
-
-typedef double Scalar;
-typedef Eigen::Matrix<Scalar, 3, 1> Vector3;
-typedef Eigen::Matrix<Scalar, 3, 3> Matrix3;
-typedef Eigen::Matrix<Scalar, 4, 4> Matrix4;
+#include "kd_tree.h"
+#include "nanoflann.hpp"
+#include "pose_chain.h"
 
 #include <math.h>
 #include <chrono>
@@ -35,32 +30,6 @@ class NanoMap {
   std::vector<pcl::PointXYZ> FindNearestPointsMerged(Vector3 const& robot_position, Vector3 bounding_box);
 
  private:
-
-  struct PointCloudData {
-    size_t id;   // unique id, assigned to be monotonically increasing with time
-    pcl::PointCloud<pcl::PointXYZ>::Ptr organized_cloud_ptr;
-    KDTree<double> kd_tree;
-  };
-
-  struct PoseTransform {
-    size_t depth_image_from;
-    size_t depth_image_to;
-
-    Matrix4 transform;
-    Vector3 axis_aligned_linear_covariance;
-  };
-
-  struct TransformPointCloudPair {
-    PoseTransform incremental_transform_to_previous_point_cloud;
-    DepthImage previous_point_cloud;
-  };
-
-  struct DepthPoseChain {
-    std::list<TransformDepthPair> depth_pose_chain;
-    size_t N;
-  };
-
-  std::deque<DepthImage> depth_image_deque;
 
   KDTree<double> merged_kd_tree;
 

@@ -10,11 +10,9 @@
 
 #include <vector>
 
-#include "depthest/utils/assert.h"
+//#include "assert.h"
 
-namespace depthest {
-
-namespace utils {
+namespace nanomap {
 
 /**
  * @brief Class to implement a simple circular buffer.
@@ -52,7 +50,7 @@ class CircularBuffer final {
    * @param[in] idx Index relative to start.
    */
   T& operator[](size_t idx) {
-    DEPTHEST_ASSERT(idx < size_);
+    //NANOMAP_ASSERT(idx < size_);
     return buffer_[(start_ + idx) % capacity_];
   }
 
@@ -71,7 +69,7 @@ class CircularBuffer final {
    * @vruef Return the index of the last element.
    */
   uint32_t end() const {
-    DEPTHEST_ASSERT(size_ > 0);
+    //NANOMAP_ASSERT(size_ > 0);
     return (start_ + size_ - 1) % capacity_;
   }
 
@@ -93,11 +91,11 @@ class CircularBuffer final {
    * @brief Return a reference to the first element in the buffer.
    */
   const T& front() const {
-    DEPTHEST_ASSERT(size_ > 0);
+    //NANOMAP_ASSERT(size_ > 0);
     return buffer_[start_];
   }
   T& front() {
-    DEPTHEST_ASSERT(size_ > 0);
+    //NANOMAP_ASSERT(size_ > 0);
     return buffer_[start_];
   }
 
@@ -105,11 +103,11 @@ class CircularBuffer final {
    * @brief Return a reference to the last element in the buffer.
    */
   const T& back() const {
-    DEPTHEST_ASSERT(size_ > 0);
+    //NANOMAP_ASSERT(size_ > 0);
     return buffer_[end()];
   }
   T& back() {
-    DEPTHEST_ASSERT(size_ > 0);
+    //NANOMAP_ASSERT(size_ > 0);
     return buffer_[end()];
   }
 
@@ -124,7 +122,7 @@ class CircularBuffer final {
    * @brief Pop an item from the front of the buffer.
    */
   void pop_front() {
-    DEPTHEST_ASSERT(size_ > 0);
+    //NANOMAP_ASSERT(size_ > 0);
     start_ = (start_ + 1) % capacity_;
     --size_;
     return;
@@ -159,6 +157,4 @@ class CircularBuffer final {
   std::vector<T> buffer_; // Data!
 };
 
-}  // namespace utils
-
-}  // namespace depthest
+}  // namespace nanomap
